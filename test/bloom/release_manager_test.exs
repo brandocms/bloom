@@ -5,15 +5,27 @@ defmodule Bloom.ReleaseManagerTest do
   alias Bloom.MockReleaseHandler
 
   setup do
-    # Clear metadata between tests
-    Application.put_env(:bloom, :app_root, "test/tmp/#{:erlang.unique_integer()}")
+    # Create unique temporary directory for this test
+    test_dir = "test/tmp/#{:erlang.unique_integer()}"
+    Application.put_env(:bloom, :app_root, test_dir)
 
-    # Clear any previous mock state
+    # Reset mock state completely
+    MockReleaseHandler.reset_to_initial_state()
+    # Clear all releases to start fresh
     MockReleaseHandler.clear_releases()
 
-    # Set up some default releases
+    # Set up some default releases for tests that expect them
     MockReleaseHandler.add_mock_release(:bloom_test, "0.1.0", :permanent)
     MockReleaseHandler.add_mock_release(:bloom_test, "0.0.9", :old)
+
+    on_exit(fn ->
+      # Clean up test directory
+      File.rm_rf(test_dir)
+      # Reset mock state
+      MockReleaseHandler.reset_to_initial_state()
+      # Clear application environment
+      Application.delete_env(:bloom, :app_root)
+    end)
 
     :ok
   end

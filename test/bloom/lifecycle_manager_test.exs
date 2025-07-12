@@ -4,13 +4,34 @@ defmodule Bloom.LifecycleManagerTest do
   alias Bloom.LifecycleManager
 
   setup do
-    # Clean up any test configuration
+    # Store original configuration
+    original_auto_cleanup = Application.get_env(:bloom, :auto_cleanup_enabled)
+    original_retention_count = Application.get_env(:bloom, :release_retention_count)
+    original_disk_threshold = Application.get_env(:bloom, :disk_space_warning_threshold)
+
+    # Set test configuration
     Application.put_env(:bloom, :auto_cleanup_enabled, false)
     Application.put_env(:bloom, :release_retention_count, 3)
     Application.put_env(:bloom, :disk_space_warning_threshold, 85)
 
+    # Reset mock state
+    Bloom.MockReleaseHandler.reset_to_initial_state()
+
+    on_exit(fn ->
+      # Restore original configuration
+      restore_env(:bloom, :auto_cleanup_enabled, original_auto_cleanup)
+      restore_env(:bloom, :release_retention_count, original_retention_count)
+      restore_env(:bloom, :disk_space_warning_threshold, original_disk_threshold)
+      # Reset mock state
+      Bloom.MockReleaseHandler.reset_to_initial_state()
+    end)
+
     :ok
   end
+
+  # Helper to restore environment variables
+  defp restore_env(app, key, nil), do: Application.delete_env(app, key)
+  defp restore_env(app, key, value), do: Application.put_env(app, key, value)
 
   describe "cleanup_old_releases/1" do
     test "performs dry run without removing releases" do

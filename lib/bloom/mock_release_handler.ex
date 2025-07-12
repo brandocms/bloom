@@ -81,6 +81,13 @@ defmodule Bloom.MockReleaseHandler do
     GenServer.call(__MODULE__, {:set_next_result, operation, result})
   end
 
+  @doc """
+  Reset to initial state for test isolation
+  """
+  def reset_to_initial_state do
+    GenServer.call(__MODULE__, :reset_to_initial_state)
+  end
+
   # Server implementation
 
   @impl true
@@ -241,6 +248,20 @@ defmodule Bloom.MockReleaseHandler do
     new_results = Map.put(state.next_results, operation, result)
     new_state = %{state | next_results: new_results}
     {:reply, :ok, new_state}
+  end
+
+  @impl true
+  def handle_call(:reset_to_initial_state, _from, _state) do
+    # Reset to exactly the same state as init/1
+    initial_state = %{
+      releases: [
+        {:bloom_test, ~c"0.1.0", [:kernel, :stdlib], :permanent}
+      ],
+      current_version: ~c"0.1.0",
+      next_results: %{}
+    }
+
+    {:reply, :ok, initial_state}
   end
 
   # Private helpers

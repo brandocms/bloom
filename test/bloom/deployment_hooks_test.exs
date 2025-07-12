@@ -1,5 +1,6 @@
 defmodule Bloom.DeploymentHooksTest do
-  use ExUnit.Case, async: true
+  # MUST be false - modifies shared hooks registry
+  use ExUnit.Case, async: false
 
   alias Bloom.DeploymentHooks
 
@@ -33,6 +34,12 @@ defmodule Bloom.DeploymentHooksTest do
   setup do
     # Clear hooks before each test
     DeploymentHooks.clear_hooks()
+
+    on_exit(fn ->
+      # Clean up hooks after each test
+      DeploymentHooks.clear_hooks()
+    end)
+
     :ok
   end
 

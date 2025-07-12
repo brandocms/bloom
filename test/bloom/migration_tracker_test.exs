@@ -1,15 +1,35 @@
 defmodule Bloom.MigrationTrackerTest do
-  use ExUnit.Case, async: true
+  # MUST be false - modifies Application environment
+  use ExUnit.Case, async: false
 
   alias Bloom.MigrationTracker
 
   setup do
+    # Store original configuration
+    original_ecto_repos = Application.get_env(:bloom, :ecto_repos)
+    original_app_root = Application.get_env(:bloom, :app_root)
+
+    # Create unique test directory
+    test_dir = "test/tmp/migration_#{:erlang.unique_integer()}"
+
     # Configure test environment
     Application.put_env(:bloom, :ecto_repos, [])
-    Application.put_env(:bloom, :app_root, "test/tmp/#{:erlang.unique_integer()}")
+    Application.put_env(:bloom, :app_root, test_dir)
+
+    on_exit(fn ->
+      # Clean up test directory
+      File.rm_rf(test_dir)
+      # Restore original configuration
+      restore_env(:bloom, :ecto_repos, original_ecto_repos)
+      restore_env(:bloom, :app_root, original_app_root)
+    end)
 
     :ok
   end
+
+  # Helper to restore environment variables
+  defp restore_env(app, key, nil), do: Application.delete_env(app, key)
+  defp restore_env(app, key, value), do: Application.put_env(app, key, value)
 
   describe "check_pending_migrations/0" do
     test "returns empty map when no repos configured" do

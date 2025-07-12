@@ -54,9 +54,24 @@ defmodule Bloom.DeploymentCoordinator do
   """
   def get_deployment_status(deployment_id) do
     case Bloom.Metadata.get_deployment_info(deployment_id) do
-      {:ok, info} -> {:ok, info}
-      {:error, :not_found} -> {:error, :deployment_not_found}
-      error -> error
+      {:ok, info} ->
+        # Convert status to atom for internal operations but keep the original format
+        converted_info =
+          case info do
+            %{"status" => status} when is_binary(status) ->
+              Map.put(info, :status, String.to_atom(status))
+
+            _ ->
+              info
+          end
+
+        {:ok, converted_info}
+
+      {:error, :not_found} ->
+        {:error, :deployment_not_found}
+
+      error ->
+        error
     end
   end
 

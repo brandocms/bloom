@@ -3,29 +3,35 @@ defmodule Bloom.MetadataTest do
 
   alias Bloom.Metadata
 
-  @test_metadata_dir "test/tmp"
-
   setup do
+    # Create unique temporary directory for each test
+    test_metadata_dir = "test/tmp/metadata_#{:erlang.unique_integer()}"
+
     # Clean up any existing test metadata
-    File.rm_rf(@test_metadata_dir)
-    File.mkdir_p!(@test_metadata_dir)
+    File.rm_rf(test_metadata_dir)
+    File.mkdir_p!(test_metadata_dir)
 
     # Set test configuration
-    Application.put_env(:bloom, :app_root, @test_metadata_dir)
+    Application.put_env(:bloom, :app_root, test_metadata_dir)
+
+    # Reset mock state
+    Bloom.MockReleaseHandler.reset_to_initial_state()
 
     on_exit(fn ->
-      File.rm_rf(@test_metadata_dir)
+      File.rm_rf(test_metadata_dir)
       Application.delete_env(:bloom, :app_root)
+      Bloom.MockReleaseHandler.reset_to_initial_state()
     end)
 
-    :ok
+    # Return the test directory for use in tests
+    {:ok, test_metadata_dir: test_metadata_dir}
   end
 
   describe "init_metadata_storage/0" do
-    test "creates metadata file if it doesn't exist" do
+    test "creates metadata file if it doesn't exist", %{test_metadata_dir: test_metadata_dir} do
       assert Metadata.init_metadata_storage() == :ok
 
-      metadata_file = Path.join([@test_metadata_dir, "priv", "release_metadata.json"])
+      metadata_file = Path.join([test_metadata_dir, "priv", "release_metadata.json"])
       assert File.exists?(metadata_file)
 
       # Check initial content

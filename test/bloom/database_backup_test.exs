@@ -1,5 +1,6 @@
 defmodule Bloom.DatabaseBackupTest do
-  use ExUnit.Case, async: true
+  # MUST be false - modifies Application environment
+  use ExUnit.Case, async: false
 
   alias Bloom.DatabaseBackup
 
@@ -25,11 +26,32 @@ defmodule Bloom.DatabaseBackupTest do
   end
 
   setup do
+    # Store original configuration
+    original_app_root = Application.get_env(:bloom, :app_root)
+    original_backup_enabled = Application.get_env(:bloom, :database_backup_enabled)
+    original_backup_backend = Application.get_env(:bloom, :database_backup_backend)
+
+    # Create unique test directory
+    test_dir = "test/tmp/db_backup_#{:erlang.unique_integer()}"
+
     # Configure test environment
-    Application.put_env(:bloom, :app_root, "test/tmp/#{:erlang.unique_integer()}")
+    Application.put_env(:bloom, :app_root, test_dir)
+
+    on_exit(fn ->
+      # Clean up test directory
+      File.rm_rf(test_dir)
+      # Restore original configuration
+      restore_env(:bloom, :app_root, original_app_root)
+      restore_env(:bloom, :database_backup_enabled, original_backup_enabled)
+      restore_env(:bloom, :database_backup_backend, original_backup_backend)
+    end)
 
     :ok
   end
+
+  # Helper to restore environment variables
+  defp restore_env(app, key, nil), do: Application.delete_env(app, key)
+  defp restore_env(app, key, value), do: Application.put_env(app, key, value)
 
   describe "create_backup/1" do
     test "returns ok when backup is disabled" do

@@ -1,28 +1,66 @@
 defmodule Bloom.DeploymentCoordinatorTest do
-  use ExUnit.Case, async: true
+  # MUST be false - modifies shared state
+  use ExUnit.Case, async: false
 
   alias Bloom.DeploymentCoordinator
   alias Bloom.MockReleaseHandler
 
   setup do
+    # Create unique temporary directory for this test
+    test_dir = "test/tmp/deployment_#{:erlang.unique_integer()}"
+    File.mkdir_p!(test_dir)
+    Application.put_env(:bloom, :app_root, test_dir)
+
     # Initialize metadata storage for tests
-    Application.put_env(:bloom, :app_root, System.tmp_dir!())
     Bloom.Metadata.init_metadata_storage()
 
-    # Clear any existing deployment hooks
+    # Clear any existing deployment hooks and registry
     Application.delete_env(:bloom, :deployment_hooks)
+    Application.delete_env(:bloom, :deployment_hooks_registry)
+    Bloom.DeploymentHooks.clear_hooks()
 
-    # Set up mock release handler state
-    MockReleaseHandler.clear_releases()
+    # Reset mock release handler state completely
+    MockReleaseHandler.reset_to_initial_state()
     MockReleaseHandler.add_mock_release(:bloom_test, "1.0.0", :permanent)
     MockReleaseHandler.add_mock_release(:bloom_test, "1.1.0", :old)
 
+    # Reset health checker state
+    GenServer.call(Bloom.HealthChecker, :reset_to_defaults)
+
     on_exit(fn ->
+      # Clean up test directory
+      File.rm_rf(test_dir)
+      # Clean up application environment
       Application.delete_env(:bloom, :app_root)
       Application.delete_env(:bloom, :deployment_hooks)
+      Application.delete_env(:bloom, :deployment_hooks_registry)
+      # Clean up hooks registry
+      Bloom.DeploymentHooks.clear_hooks()
+      # Reset mock state
+      MockReleaseHandler.reset_to_initial_state()
+      # Reset health checker
+      GenServer.call(Bloom.HealthChecker, :reset_to_defaults)
+      # Unregister any test processes
+      unregister_test_processes()
     end)
 
     :ok
+  end
+
+  # Helper to unregister test processes safely
+  defp unregister_test_processes do
+    test_processes = [:test_hook_process, :test_hook_process_post]
+
+    for process_name <- test_processes do
+      try do
+        case Process.whereis(process_name) do
+          nil -> :ok
+          _pid -> Process.unregister(process_name)
+        end
+      rescue
+        _ -> :ok
+      end
+    end
   end
 
   describe "deploy/2" do
@@ -92,25 +130,23 @@ defmodule Bloom.DeploymentCoordinatorTest do
 
   describe "deployment hooks" do
     test "registers and runs pre-deployment hooks" do
-      # Register a test hook
+      # Register a test hook using the DeploymentHooks module
       test_pid = self()
-
-      hook_function = fn context ->
-        send(test_pid, {:hook_called, :pre_deployment, context.target_version})
-        :ok
-      end
 
       # We need to create a module for the hook since we can't pass anonymous functions
       defmodule TestPreDeploymentHook do
-        def run_hook(context, test_pid) do
+        def execute(context) do
+          # Find the test_pid from the context or from Process
+          test_pid = Process.whereis(:test_hook_process) || self()
           send(test_pid, {:hook_called, :pre_deployment, context.target_version})
           :ok
         end
       end
 
-      DeploymentCoordinator.register_hook(:pre_deployment, TestPreDeploymentHook, :run_hook, [
-        test_pid
-      ])
+      # Register the process so the hook can find it
+      Process.register(self(), :test_hook_process)
+
+      Bloom.DeploymentHooks.register_hook(:pre_deployment, TestPreDeploymentHook)
 
       DeploymentCoordinator.deploy("1.1.0")
 
@@ -119,12 +155,12 @@ defmodule Bloom.DeploymentCoordinatorTest do
 
     test "handles hook failures gracefully" do
       defmodule TestFailingHook do
-        def failing_hook(_context) do
+        def execute(_context) do
           {:error, "Hook intentionally failed"}
         end
       end
 
-      DeploymentCoordinator.register_hook(:pre_deployment, TestFailingHook, :failing_hook)
+      Bloom.DeploymentHooks.register_hook(:pre_deployment, TestFailingHook)
 
       result = DeploymentCoordinator.deploy("1.1.0")
 
@@ -136,15 +172,17 @@ defmodule Bloom.DeploymentCoordinatorTest do
       test_pid = self()
 
       defmodule TestPostDeploymentHook do
-        def run_hook(context, test_pid) do
+        def execute(context) do
+          test_pid = Process.whereis(:test_hook_process_post) || self()
           send(test_pid, {:hook_called, :post_deployment, context.target_version})
           :ok
         end
       end
 
-      DeploymentCoordinator.register_hook(:post_deployment, TestPostDeploymentHook, :run_hook, [
-        test_pid
-      ])
+      # Register the process so the hook can find it
+      Process.register(self(), :test_hook_process_post)
+
+      Bloom.DeploymentHooks.register_hook(:post_deployment, TestPostDeploymentHook)
 
       DeploymentCoordinator.deploy("1.1.0")
 
@@ -160,9 +198,9 @@ defmodule Bloom.DeploymentCoordinatorTest do
       # Check that we can retrieve the deployment status
       case DeploymentCoordinator.get_deployment_status(deployment_id) do
         {:ok, status} ->
-          assert status.id == deployment_id
-          assert status.target_version == "1.1.0"
-          assert status.status in [:completed, :failed]
+          assert status["id"] == deployment_id
+          assert status["target_version"] == "1.1.0"
+          assert status["status"] in ["completed", "failed"]
 
         {:error, :deployment_not_found} ->
           # This might happen in test environment, which is fine
