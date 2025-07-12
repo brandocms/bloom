@@ -155,18 +155,54 @@ defmodule Bloom.RPC do
   end
 
   defp authenticate_caller(nil) do
-    # For now, allow unauthenticated calls
-    # TODO: Implement proper authentication
-    :ok
+    # Check if authentication is required
+    case Application.get_env(:bloom, :require_authentication, false) do
+      false -> :ok
+      true -> {:error, :authentication_required}
+    end
   end
 
-  defp authenticate_caller(_caller_info) do
-    # TODO: Implement authentication logic
-    # This could check:
-    # - Shared secrets
-    # - Certificates
-    # - IP address allowlists
-    # - Time-based tokens
-    :ok
+  defp authenticate_caller(caller_info) do
+    # Check if authentication is required
+    case Application.get_env(:bloom, :require_authentication, false) do
+      false -> :ok
+      true -> verify_caller_credentials(caller_info)
+    end
+  end
+
+  defp verify_caller_credentials(caller_info) when is_map(caller_info) do
+    # Check shared secret if configured
+    case Application.get_env(:bloom, :shared_secret) do
+      nil ->
+        # No shared secret configured, check other methods
+        verify_other_credentials(caller_info)
+      
+      expected_secret ->
+        case Map.get(caller_info, :secret) do
+          ^expected_secret -> :ok
+          _ -> {:error, :invalid_credentials}
+        end
+    end
+  end
+
+  defp verify_caller_credentials(_caller_info) do
+    {:error, :invalid_caller_info}
+  end
+
+  defp verify_other_credentials(caller_info) do
+    # Check IP allowlist if configured
+    case Application.get_env(:bloom, :allowed_ips) do
+      nil ->
+        # No IP restrictions, allow
+        :ok
+      
+      allowed_ips when is_list(allowed_ips) ->
+        caller_ip = Map.get(caller_info, :ip)
+        if caller_ip in allowed_ips do
+          :ok
+        else
+          {:error, :ip_not_allowed}
+        end
+    end
   end
 end

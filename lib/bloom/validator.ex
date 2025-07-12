@@ -105,13 +105,62 @@ defmodule Bloom.Validator do
   end
 
   defp check_dependencies(version) do
-    # TODO: Implement dependency checking
-    # This could:
-    # - Parse the .rel file to check application dependencies
-    # - Verify that required OTP version is compatible
-    # - Check for conflicting application versions
     Logger.debug("Checking dependencies for release #{version}")
-    :ok
+    
+    # Skip dependency checks in test mode
+    if Application.get_env(:bloom, :skip_file_checks, false) do
+      :ok
+    else
+      with :ok <- check_otp_version_compatibility(version),
+           :ok <- check_application_dependencies(version) do
+        :ok
+      else
+        error -> error
+      end
+    end
+  end
+
+  defp check_otp_version_compatibility(_version) do
+    # Get current OTP version
+    otp_version = :erlang.system_info(:otp_release) |> List.to_string()
+    
+    # Check if there's a minimum OTP version requirement
+    case Application.get_env(:bloom, :min_otp_version) do
+      nil -> 
+        :ok
+      
+      min_version when is_binary(min_version) ->
+        case Version.compare(otp_version, min_version) do
+          :lt ->
+            {:error, "OTP version #{otp_version} is below minimum required #{min_version}"}
+          _ ->
+            :ok
+        end
+    end
+  rescue
+    _ ->
+      Logger.warning("Could not check OTP version compatibility")
+      :ok
+  end
+
+  defp check_application_dependencies(version) do
+    # Check for critical applications that must be present
+    case Application.get_env(:bloom, :required_applications) do
+      nil ->
+        :ok
+      
+      required_apps when is_list(required_apps) ->
+        started_apps = Application.started_applications()
+        started_app_names = Enum.map(started_apps, fn {name, _desc, _vsn} -> name end)
+        
+        missing_apps = Enum.reject(required_apps, fn app -> app in started_app_names end)
+        
+        if Enum.empty?(missing_apps) do
+          :ok
+        else
+          {:error, "Required applications not running: #{inspect(missing_apps)}"}
+        end
+    end
   end
 
   defp check_disk_space(_version) do

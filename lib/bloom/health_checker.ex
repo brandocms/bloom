@@ -155,9 +155,19 @@ defmodule Bloom.HealthChecker do
     # Check if the main application is running
     case Application.started_applications() do
       apps when is_list(apps) ->
-        # TODO: Get the actual application name from config
-        # For now, just check that we have some applications running
-        if length(apps) > 0, do: :ok, else: {:error, :no_applications}
+        # Check for the configured application or just verify some apps are running
+        case Application.get_env(:bloom, :app_name) do
+          nil ->
+            # Just check that we have some applications running
+            if length(apps) > 0, do: :ok, else: {:error, :no_applications}
+          app_name when is_atom(app_name) ->
+            # Check if the specific application is running
+            if Enum.any?(apps, fn {name, _desc, _vsn} -> name == app_name end) do
+              :ok
+            else
+              {:error, {:application_not_running, app_name}}
+            end
+        end
 
       _ ->
         {:error, :cannot_get_applications}
@@ -169,17 +179,35 @@ defmodule Bloom.HealthChecker do
     memory_info = :erlang.memory()
     total_memory = Keyword.get(memory_info, :total, 0)
 
-    # TODO: Make threshold configurable
-    # For now, just check that we have some memory usage (sanity check)
-    if total_memory > 0, do: :ok, else: {:error, :invalid_memory_info}
+    # Get configurable memory threshold (default: 1GB)
+    threshold = Application.get_env(:bloom, :memory_threshold_bytes, 1_073_741_824)
+    
+    cond do
+      total_memory == 0 ->
+        {:error, :invalid_memory_info}
+      total_memory > threshold ->
+        {:error, {:memory_threshold_exceeded, total_memory, threshold}}
+      true ->
+        :ok
+    end
   end
 
   defp check_process_count do
     # Check if process count is reasonable
     process_count = :erlang.system_info(:process_count)
+    process_limit = :erlang.system_info(:process_limit)
 
-    # TODO: Make thresholds configurable
-    # Basic sanity check - should have more than 10 processes
-    if process_count > 10, do: :ok, else: {:error, :too_few_processes}
+    # Get configurable thresholds
+    min_processes = Application.get_env(:bloom, :min_processes, 10)
+    max_process_ratio = Application.get_env(:bloom, :max_process_ratio, 0.9)
+
+    cond do
+      process_count < min_processes ->
+        {:error, {:too_few_processes, process_count, min_processes}}
+      process_count / process_limit > max_process_ratio ->
+        {:error, {:high_process_usage, process_count, process_limit}}
+      true ->
+        :ok
+    end
   end
 end
