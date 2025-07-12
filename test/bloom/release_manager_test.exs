@@ -7,14 +7,14 @@ defmodule Bloom.ReleaseManagerTest do
   setup do
     # Clear metadata between tests
     Application.put_env(:bloom, :app_root, "test/tmp/#{:erlang.unique_integer()}")
-    
+
     # Clear any previous mock state
     MockReleaseHandler.clear_releases()
-    
+
     # Set up some default releases
     MockReleaseHandler.add_mock_release(:bloom_test, "0.1.0", :permanent)
     MockReleaseHandler.add_mock_release(:bloom_test, "0.0.9", :old)
-    
+
     :ok
   end
 
@@ -42,7 +42,7 @@ defmodule Bloom.ReleaseManagerTest do
     test "successfully switches to a release" do
       # Install release first
       assert ReleaseManager.install_release("1.2.3") == :ok
-      
+
       # Then switch to it
       assert ReleaseManager.switch_release("1.2.3") == :ok
     end
@@ -65,7 +65,7 @@ defmodule Bloom.ReleaseManagerTest do
   describe "list_releases/0" do
     test "returns formatted release list" do
       releases = ReleaseManager.list_releases()
-      
+
       # Check that we have the expected releases (order may vary)
       assert length(releases) == 2
       assert %{name: "bloom_test", version: "0.1.0", status: :permanent} in releases
@@ -92,7 +92,7 @@ defmodule Bloom.ReleaseManagerTest do
       # First create deployment history metadata
       Bloom.Metadata.save_release_info("1.2.2")
       Bloom.Metadata.save_release_info("1.2.3")
-      
+
       # Set up releases in mock handler
       MockReleaseHandler.clear_releases()
       MockReleaseHandler.add_mock_release(:bloom_test, "1.2.3", :permanent)
@@ -114,19 +114,19 @@ defmodule Bloom.ReleaseManagerTest do
     test "handles already installed error" do
       # First install should succeed
       assert ReleaseManager.install_release("1.2.3") == :ok
-      
+
       # Set mock to return already installed error
       MockReleaseHandler.set_next_result(:unpack_release, {:error, {:already_installed, "1.2.3"}})
-      
-      assert {:error, "Release 1.2.3 is already installed"} = 
-             ReleaseManager.install_release("1.2.3")
+
+      assert {:error, "Release 1.2.3 is already installed"} =
+               ReleaseManager.install_release("1.2.3")
     end
 
     test "handles bad relup file error" do
       MockReleaseHandler.set_next_result(:install_release, {:error, {:bad_relup_file, []}})
-      
+
       assert {:error, "Invalid release upgrade file - check release compatibility"} =
-             ReleaseManager.switch_release("1.2.3")
+               ReleaseManager.switch_release("1.2.3")
     end
   end
 end

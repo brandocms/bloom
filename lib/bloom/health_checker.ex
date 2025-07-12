@@ -160,6 +160,7 @@ defmodule Bloom.HealthChecker do
           nil ->
             # Just check that we have some applications running
             if length(apps) > 0, do: :ok, else: {:error, :no_applications}
+
           app_name when is_atom(app_name) ->
             # Check if the specific application is running
             if Enum.any?(apps, fn {name, _desc, _vsn} -> name == app_name end) do
@@ -181,12 +182,14 @@ defmodule Bloom.HealthChecker do
 
     # Get configurable memory threshold (default: 1GB)
     threshold = Application.get_env(:bloom, :memory_threshold_bytes, 1_073_741_824)
-    
+
     cond do
       total_memory == 0 ->
         {:error, :invalid_memory_info}
+
       total_memory > threshold ->
         {:error, {:memory_threshold_exceeded, total_memory, threshold}}
+
       true ->
         :ok
     end
@@ -204,8 +207,10 @@ defmodule Bloom.HealthChecker do
     cond do
       process_count < min_processes ->
         {:error, {:too_few_processes, process_count, min_processes}}
+
       process_count / process_limit > max_process_ratio ->
         {:error, {:high_process_usage, process_count, process_limit}}
+
       true ->
         :ok
     end

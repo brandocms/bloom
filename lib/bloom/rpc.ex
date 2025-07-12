@@ -176,7 +176,7 @@ defmodule Bloom.RPC do
       nil ->
         # No shared secret configured, check other methods
         verify_other_credentials(caller_info)
-      
+
       expected_secret ->
         case Map.get(caller_info, :secret) do
           ^expected_secret -> :ok
@@ -195,9 +195,10 @@ defmodule Bloom.RPC do
       nil ->
         # No IP restrictions, allow
         :ok
-      
+
       allowed_ips when is_list(allowed_ips) ->
         caller_ip = Map.get(caller_info, :ip)
+
         if caller_ip in allowed_ips do
           :ok
         else

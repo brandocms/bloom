@@ -298,13 +298,13 @@ defmodule Bloom.SafetyMonitor do
     case get_recent_error_metrics() do
       {:ok, error_rate} ->
         max_error_rate = Application.get_env(:bloom, :max_error_rate_per_minute, 10)
-        
+
         if error_rate <= max_error_rate do
           :ok
         else
           {:error, {:error_rate_exceeded, error_rate, max_error_rate}}
         end
-      
+
       {:error, reason} ->
         Logger.warning("Could not check error rate: #{inspect(reason)}")
         :ok
@@ -316,13 +316,13 @@ defmodule Bloom.SafetyMonitor do
     case measure_node_response_time() do
       {:ok, response_time_ms} ->
         max_response_time = Application.get_env(:bloom, :max_response_time_ms, 5000)
-        
+
         if response_time_ms <= max_response_time do
           :ok
         else
           {:error, {:response_time_exceeded, response_time_ms, max_response_time}}
         end
-      
+
       {:error, reason} ->
         {:error, {:response_time_check_failed, reason}}
     end
@@ -333,7 +333,7 @@ defmodule Bloom.SafetyMonitor do
       # Count recent supervisor restarts and process exits
       supervisor_restarts = count_supervisor_restarts()
       process_exits = count_abnormal_process_exits()
-      
+
       # Simple error rate calculation (errors per minute)
       total_errors = supervisor_restarts + process_exits
       {:ok, total_errors}
@@ -350,6 +350,7 @@ defmodule Bloom.SafetyMonitor do
       children when is_list(children) ->
         # In a real implementation, this would track restarts over time
         0
+
       _ ->
         0
     end
@@ -365,13 +366,13 @@ defmodule Bloom.SafetyMonitor do
 
   defp measure_node_response_time do
     start_time = System.monotonic_time(:millisecond)
-    
+
     try do
       # Simple ping to measure node responsiveness
       :pong = :net_adm.ping(node())
       end_time = System.monotonic_time(:millisecond)
       response_time = end_time - start_time
-      
+
       {:ok, response_time}
     rescue
       error ->

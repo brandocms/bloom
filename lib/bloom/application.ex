@@ -17,7 +17,7 @@ defmodule Bloom.Application do
     ]
 
     # Add MockReleaseHandler in test environment
-    children = 
+    children =
       if Mix.env() == :test do
         [Bloom.MockReleaseHandler | base_children]
       else

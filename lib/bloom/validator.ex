@@ -15,7 +15,7 @@ defmodule Bloom.Validator do
   to install or switch to.
   """
   def validate_release(version) when is_binary(version) do
-    checks = 
+    checks =
       if Application.get_env(:bloom, :skip_file_checks, false) do
         # Skip file system checks when configured (e.g., in tests)
         [
@@ -106,7 +106,7 @@ defmodule Bloom.Validator do
 
   defp check_dependencies(version) do
     Logger.debug("Checking dependencies for release #{version}")
-    
+
     # Skip dependency checks in test mode
     if Application.get_env(:bloom, :skip_file_checks, false) do
       :ok
@@ -123,16 +123,17 @@ defmodule Bloom.Validator do
   defp check_otp_version_compatibility(_version) do
     # Get current OTP version
     otp_version = :erlang.system_info(:otp_release) |> List.to_string()
-    
+
     # Check if there's a minimum OTP version requirement
     case Application.get_env(:bloom, :min_otp_version) do
-      nil -> 
+      nil ->
         :ok
-      
+
       min_version when is_binary(min_version) ->
         case Version.compare(otp_version, min_version) do
           :lt ->
             {:error, "OTP version #{otp_version} is below minimum required #{min_version}"}
+
           _ ->
             :ok
         end
@@ -143,18 +144,18 @@ defmodule Bloom.Validator do
       :ok
   end
 
-  defp check_application_dependencies(version) do
+  defp check_application_dependencies(_version) do
     # Check for critical applications that must be present
     case Application.get_env(:bloom, :required_applications) do
       nil ->
         :ok
-      
+
       required_apps when is_list(required_apps) ->
         started_apps = Application.started_applications()
         started_app_names = Enum.map(started_apps, fn {name, _desc, _vsn} -> name end)
-        
+
         missing_apps = Enum.reject(required_apps, fn app -> app in started_app_names end)
-        
+
         if Enum.empty?(missing_apps) do
           :ok
         else
@@ -213,13 +214,149 @@ defmodule Bloom.Validator do
     :ok
   end
 
-  defp check_migration_requirements(_from_version, _to_version) do
-    # TODO: Implement migration requirement checking
-    # This could:
-    # - Check for database migrations
-    # - Verify data format compatibility
-    # - Check for required pre-switch operations
+  defp check_migration_requirements(from_version, to_version) do
+    Logger.debug("Checking migration requirements: #{from_version} -> #{to_version}")
+
+    with :ok <- check_pending_migrations(),
+         :ok <- check_migration_compatibility(from_version, to_version),
+         :ok <- check_backup_requirements() do
+      :ok
+    else
+      error -> error
+    end
+  end
+
+  defp check_pending_migrations do
+    case Bloom.MigrationTracker.check_pending_migrations() do
+      pending when map_size(pending) == 0 ->
+        Logger.debug("No pending migrations found")
+        :ok
+
+      pending when map_size(pending) > 0 ->
+        repos_with_migrations = Map.keys(pending)
+        migration_count = pending |> Map.values() |> List.flatten() |> length()
+
+        Logger.info(
+          "Found #{migration_count} pending migrations across #{length(repos_with_migrations)} repos"
+        )
+
+        # Check if backups are required for migrations
+        if Application.get_env(:bloom, :database_backup_enabled, false) do
+          :ok
+        else
+          case Application.get_env(:bloom, :require_backup_for_migrations, true) do
+            true ->
+              Logger.warning("Pending migrations found but database backup is disabled")
+
+              {:error,
+               "Database backup is required for deployments with migrations but is disabled"}
+
+            false ->
+              Logger.warning(
+                "Proceeding with migrations without database backup (not recommended)"
+              )
+
+              :ok
+          end
+        end
+    end
+  rescue
+    error ->
+      Logger.error("Error checking pending migrations: #{inspect(error)}")
+      {:error, {:migration_check_failed, error}}
+  end
+
+  defp check_migration_compatibility(_from_version, _to_version) do
+    # Future enhancement: Check for breaking migration patterns
+    # - Destructive operations (DROP COLUMN, DROP TABLE)
+    # - Data type changes that might cause issues
+    # - Constraint additions that might fail on existing data
+
+    # For now, assume all migrations are compatible
     :ok
+  end
+
+  defp check_backup_requirements do
+    # If database backup is enabled, verify we have the necessary tools and permissions
+    if Application.get_env(:bloom, :database_backup_enabled, false) do
+      backend =
+        Application.get_env(:bloom, :database_backup_backend, Bloom.DatabaseBackup.Postgres)
+
+      case verify_backup_backend(backend) do
+        :ok ->
+          check_backup_storage_space()
+
+        {:error, reason} ->
+          {:error, {:backup_verification_failed, reason}}
+      end
+    else
+      :ok
+    end
+  end
+
+  defp verify_backup_backend(Bloom.DatabaseBackup.Postgres) do
+    # Check if pg_dump is available
+    case System.cmd("which", ["pg_dump"], stderr_to_stdout: true) do
+      {_output, 0} ->
+        :ok
+
+      {output, _exit_code} ->
+        {:error, "pg_dump not found in PATH: #{String.trim(output)}"}
+    end
+  rescue
+    error ->
+      {:error, {:pg_dump_check_failed, error}}
+  end
+
+  defp verify_backup_backend(_other_backend) do
+    # For other backends, assume they're available
+    # Each backend should implement its own verification
+    :ok
+  end
+
+  defp check_backup_storage_space do
+    backup_dir = Application.get_env(:bloom, :database_backup_directory, "/tmp/bloom_backups")
+
+    case get_disk_space_info_for_path(backup_dir) do
+      {:ok, available_mb} ->
+        # 1GB default
+        required_mb = Application.get_env(:bloom, :min_backup_space_mb, 1000)
+
+        if available_mb >= required_mb do
+          :ok
+        else
+          {:error,
+           "Insufficient disk space for backup. Required: #{required_mb}MB, Available: #{available_mb}MB"}
+        end
+
+      {:error, reason} ->
+        Logger.warning("Could not check backup disk space: #{inspect(reason)}")
+        # Don't fail validation if we can't check disk space
+        :ok
+    end
+  end
+
+  defp get_disk_space_info_for_path(path) do
+    # Create directory if it doesn't exist for space checking
+    File.mkdir_p(path)
+
+    try do
+      {output, 0} = System.cmd("df", ["-m", path], stderr_to_stdout: true)
+
+      lines = String.split(output, "\n", trim: true)
+
+      case lines do
+        [_header, data_line | _] ->
+          [_filesystem, _total, _used, available | _] = String.split(data_line)
+          available_mb = String.to_integer(available)
+          {:ok, available_mb}
+
+        _ ->
+          {:error, :cannot_parse_df_output}
+      end
+    rescue
+      _ -> {:error, :df_command_failed}
+    end
   end
 
   defp get_app_name do

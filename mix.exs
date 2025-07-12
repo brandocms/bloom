@@ -26,7 +26,9 @@ defmodule Bloom.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:jason, "~> 1.0", optional: true}
+      {:jason, "~> 1.0"},
+      {:ecto, "~> 3.0"},
+      {:ecto_sql, "~> 3.0"}
     ]
   end
 

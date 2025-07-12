@@ -4,8 +4,8 @@ defmodule Bloom.HealthCheckerTest do
   alias Bloom.HealthChecker
 
   setup do
-    # Start the HealthChecker for testing
-    start_supervised!(HealthChecker)
+    # HealthChecker is already started by the application
+    # Just ensure it's available for testing
     :ok
   end
 
@@ -72,7 +72,7 @@ defmodule Bloom.HealthCheckerTest do
       # Since we can't easily mock erlang functions without meck,
       # we'll test the framework by registering a failing check
       HealthChecker.register_check(:application, fn -> false end)
-      
+
       assert HealthChecker.post_switch_health_check() == false
     end
   end
@@ -83,5 +83,4 @@ defmodule Bloom.HealthCheckerTest do
       assert HealthChecker.post_switch_health_check() == true
     end
   end
-
 end

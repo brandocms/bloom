@@ -1,14 +1,14 @@
 defmodule Bloom.ReleaseHandler do
   @moduledoc """
   Adapter module for release handler operations.
-  
+
   This module provides a unified interface to either the real
   :release_handler or a mock implementation based on configuration.
   """
 
   @doc """
   Get the configured release handler module.
-  
+
   Returns :release_handler in production, or a mock module in test/dev.
   """
   def handler do

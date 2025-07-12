@@ -166,6 +166,20 @@ config :bloom,
   max_error_rate_per_minute: 10,
   max_response_time_ms: 5000,
   
+  # Database backup settings
+  database_backup_enabled: true,
+  database_backup_backend: Bloom.DatabaseBackup.Postgres,
+  database_backup_retention_count: 5,
+  database_backup_timeout_ms: 300_000,
+  database_backup_directory: "/opt/backups",
+  database_backup_required: true,
+  require_backup_for_migrations: true,
+  min_backup_space_mb: 1000,
+  
+  # Database migration settings
+  database_migration_rollback_strategy: :ecto_first, # :ecto_first, :backup_only, :skip
+  database_migration_timeout_ms: 180_000,
+  
   # Callbacks
   rollback_failure_callback: &MyApp.Monitoring.alert_critical_failure/1,
   
@@ -208,6 +222,25 @@ config :bloom,
 
 - `max_error_rate_per_minute` - Maximum errors per minute before rollback
 - `max_response_time_ms` - Maximum response time before considering unhealthy
+
+#### Database Backup Settings
+
+- `database_backup_enabled` - Enable automatic database backups before migrations
+- `database_backup_backend` - Backend module for database backups
+- `database_backup_retention_count` - Number of backups to keep
+- `database_backup_timeout_ms` - Timeout for backup operations
+- `database_backup_directory` - Directory to store backup files
+- `database_backup_required` - Fail deployment if backup creation fails
+- `require_backup_for_migrations` - Require backup when migrations are pending
+- `min_backup_space_mb` - Minimum disk space required for backups
+
+#### Database Migration Settings
+
+- `database_migration_rollback_strategy` - Strategy for migration rollbacks
+  - `:ecto_first` - Try Ecto rollback first, then backup restore
+  - `:backup_only` - Only use backup restore, skip migration rollback
+  - `:skip` - Skip all database rollback attempts
+- `database_migration_timeout_ms` - Timeout for migration operations
 
 #### Callbacks
 
@@ -257,9 +290,56 @@ Before switching to a new release, Bloom validates:
 - **Application dependencies** and OTP version compatibility
 - **Release compatibility** with current version
 
+### Database Rollback Support
+
+Bloom provides comprehensive database rollback capabilities:
+
+#### Automatic Database Backups
+
+When migrations are detected, Bloom automatically creates a database backup:
+
+```elixir
+# Backup is created automatically before migrations
+Bloom.ReleaseManager.switch_release("1.2.3")  # Creates backup if migrations pending
+```
+
+#### Migration Rollback Strategies
+
+Configure how database rollbacks are handled:
+
+```elixir
+config :bloom,
+  database_migration_rollback_strategy: :ecto_first  # Default strategy
+```
+
+- **`:ecto_first`** - Attempts to rollback migrations using Ecto, falls back to backup restore
+- **`:backup_only`** - Skips migration rollback, only restores from backup
+- **`:skip`** - Disables database rollback entirely (not recommended)
+
+#### Manual Database Operations
+
+You can also manually manage database backups and migrations:
+
+```elixir
+# Check for pending migrations
+pending = Bloom.MigrationTracker.check_pending_migrations()
+
+# Create a backup manually
+{:ok, backup_info} = Bloom.DatabaseBackup.create_backup("1.2.3")
+
+# Run migrations manually
+{:ok, executed} = Bloom.MigrationTracker.run_pending_migrations()
+
+# Rollback migrations for a specific version
+:ok = Bloom.MigrationTracker.rollback_deployment_migrations("1.2.3")
+
+# Restore from backup
+:ok = Bloom.DatabaseBackup.restore_backup("1.2.3")
+```
+
 ### Deployment Metadata
 
-Bloom tracks deployment history for rollback support:
+Bloom tracks deployment history, migrations, and backups for rollback support:
 
 ```elixir
 # Get deployment history
@@ -267,6 +347,12 @@ Bloom tracks deployment history for rollback support:
 
 # Get rollback target
 {:ok, previous_version} = Bloom.Metadata.get_rollback_target()
+
+# Get migration info for a deployment
+{:ok, migration_info} = Bloom.Metadata.get_migration_info("1.2.3")
+
+# Get backup info for a deployment
+{:ok, backup_info} = Bloom.Metadata.get_backup_info("1.2.3")
 ```
 
 ## Testing

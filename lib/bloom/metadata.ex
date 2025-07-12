@@ -104,6 +104,92 @@ defmodule Bloom.Metadata do
   end
 
   @doc """
+  Save migration information for a deployment.
+  """
+  def save_migration_info(version, migration_data) do
+    case load_metadata() do
+      {:ok, metadata} ->
+        migrations = Map.get(metadata, "migrations", %{})
+        new_migrations = Map.put(migrations, version, migration_data)
+        new_metadata = Map.put(metadata, "migrations", new_migrations)
+
+        case save_metadata(new_metadata) do
+          :ok ->
+            Logger.info("Saved migration info for version #{version}")
+            :ok
+
+          {:error, reason} ->
+            Logger.error("Failed to save migration info: #{inspect(reason)}")
+            {:error, reason}
+        end
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @doc """
+  Get migration information for a deployment.
+  """
+  def get_migration_info(version) do
+    case load_metadata() do
+      {:ok, metadata} ->
+        migrations = Map.get(metadata, "migrations", %{})
+
+        case Map.get(migrations, version) do
+          nil -> {:error, :no_migration_info}
+          info -> {:ok, info}
+        end
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @doc """
+  Save database backup information for a deployment.
+  """
+  def save_backup_info(version, backup_data) do
+    case load_metadata() do
+      {:ok, metadata} ->
+        backups = Map.get(metadata, "backups", %{})
+        new_backups = Map.put(backups, version, backup_data)
+        new_metadata = Map.put(metadata, "backups", new_backups)
+
+        case save_metadata(new_metadata) do
+          :ok ->
+            Logger.info("Saved backup info for version #{version}")
+            :ok
+
+          {:error, reason} ->
+            Logger.error("Failed to save backup info: #{inspect(reason)}")
+            {:error, reason}
+        end
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @doc """
+  Get database backup information for a deployment.
+  """
+  def get_backup_info(version) do
+    case load_metadata() do
+      {:ok, metadata} ->
+        backups = Map.get(metadata, "backups", %{})
+
+        case Map.get(backups, version) do
+          nil -> {:error, :no_backup}
+          info -> {:ok, info}
+        end
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @doc """
   Clean up old deployment records, keeping only the specified number.
   """
   def cleanup_old_records(keep_count \\ 50) when is_integer(keep_count) and keep_count > 0 do

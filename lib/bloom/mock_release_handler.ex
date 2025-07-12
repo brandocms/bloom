@@ -1,7 +1,7 @@
 defmodule Bloom.MockReleaseHandler do
   @moduledoc """
   Mock implementation of :release_handler for testing purposes.
-  
+
   This module simulates the behavior of Erlang's :release_handler
   when running in development or test environments where actual
   OTP releases are not available.
@@ -85,26 +85,28 @@ defmodule Bloom.MockReleaseHandler do
       current_version: ~c"0.1.0",
       next_results: %{}
     }
-    
+
     {:ok, state}
   end
 
   @impl true
   def handle_call({:unpack_release, version}, _from, state) do
     Logger.debug("MockReleaseHandler: unpack_release(#{version})")
-    
-    result = case get_next_result(state, :unpack_release) do
-      nil ->
-        # Default behavior - check if version format is valid
-        if valid_version?(version) do
-          {:ok, {:unpacked, version}}
-        else
-          {:error, :bad_release_name}
-        end
-      
-      result -> result
-    end
-    
+
+    result =
+      case get_next_result(state, :unpack_release) do
+        nil ->
+          # Default behavior - check if version format is valid
+          if valid_version?(version) do
+            {:ok, {:unpacked, version}}
+          else
+            {:error, :bad_release_name}
+          end
+
+        result ->
+          result
+      end
+
     new_state = clear_next_result(state, :unpack_release)
     {:reply, result, new_state}
   end
@@ -112,15 +114,17 @@ defmodule Bloom.MockReleaseHandler do
   @impl true
   def handle_call({:install_release, version}, _from, state) do
     Logger.debug("MockReleaseHandler: install_release(#{version})")
-    
-    result = case get_next_result(state, :install_release) do
-      nil ->
-        # Default behavior - always allow installation for switch operations
-        {:ok, {:installed, version}}
-      
-      result -> result
-    end
-    
+
+    result =
+      case get_next_result(state, :install_release) do
+        nil ->
+          # Default behavior - always allow installation for switch operations
+          {:ok, {:installed, version}}
+
+        result ->
+          result
+      end
+
     new_state = clear_next_result(state, :install_release)
     {:reply, result, new_state}
   end
@@ -128,17 +132,18 @@ defmodule Bloom.MockReleaseHandler do
   @impl true
   def handle_call({:make_permanent, version}, _from, state) do
     Logger.debug("MockReleaseHandler: make_permanent(#{version})")
-    
-    result = case get_next_result(state, :make_permanent) do
-      nil -> :ok
-      result -> result
-    end
-    
-    new_state = 
+
+    result =
+      case get_next_result(state, :make_permanent) do
+        nil -> :ok
+        result -> result
+      end
+
+    new_state =
       state
       |> update_release_status(version, :permanent)
       |> clear_next_result(:make_permanent)
-    
+
     {:reply, result, new_state}
   end
 
@@ -151,11 +156,12 @@ defmodule Bloom.MockReleaseHandler do
   @impl true
   def handle_call({:which_releases, :current}, _from, state) do
     Logger.debug("MockReleaseHandler: which_releases(:current)")
-    
-    current = Enum.find(state.releases, fn {_name, _version, _libs, status} ->
-      status == :permanent
-    end)
-    
+
+    current =
+      Enum.find(state.releases, fn {_name, _version, _libs, status} ->
+        status == :permanent
+      end)
+
     result = if current, do: [current], else: []
     {:reply, result, state}
   end
@@ -187,23 +193,23 @@ defmodule Bloom.MockReleaseHandler do
     String.match?(version, ~r/^\d+\.\d+\.\d+(-\w+)?$/)
   end
 
-
   defp update_release_status(state, version, new_status) do
     version_charlist = to_charlist(version)
-    
-    new_releases = Enum.map(state.releases, fn {name, v, libs, _status} = release ->
-      if v == version_charlist do
-        {name, v, libs, new_status}
-      else
-        # Make other releases :old if this one is becoming permanent
-        if new_status == :permanent do
-          {name, v, libs, :old}
+
+    new_releases =
+      Enum.map(state.releases, fn {name, v, libs, _status} = release ->
+        if v == version_charlist do
+          {name, v, libs, new_status}
         else
-          release
+          # Make other releases :old if this one is becoming permanent
+          if new_status == :permanent do
+            {name, v, libs, :old}
+          else
+            release
+          end
         end
-      end
-    end)
-    
+      end)
+
     %{state | releases: new_releases}
   end
 

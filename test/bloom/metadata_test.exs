@@ -100,6 +100,9 @@ defmodule Bloom.MetadataTest do
     end
 
     test "returns error when no rollback target available" do
+      # Initialize metadata storage first
+      Metadata.init_metadata_storage()
+
       # Only one deployment
       Metadata.save_release_info("1.0.0")
 
@@ -190,5 +193,4 @@ defmodule Bloom.MetadataTest do
       assert length(history) == 2
     end
   end
-
 end
