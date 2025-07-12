@@ -1,11 +1,11 @@
 defmodule Bloom.ReleaseManager do
   @moduledoc """
   Main interface for release operations using :release_handler.
-  
+
   This module provides a safe, high-level API for managing OTP releases
   with built-in validation, health checks, and rollback capabilities.
   """
-  
+
   use GenServer
   require Logger
 
@@ -17,7 +17,7 @@ defmodule Bloom.ReleaseManager do
 
   @doc """
   Install a release without switching to it.
-  
+
   This unpacks the release and makes it available for switching,
   but keeps the current release active.
   """
@@ -27,7 +27,7 @@ defmodule Bloom.ReleaseManager do
 
   @doc """
   Switch to an installed release and make it permanent.
-  
+
   This will restart the application with the new release.
   Includes pre/post switch validation and automatic rollback on failure.
   """
@@ -97,14 +97,14 @@ defmodule Bloom.ReleaseManager do
 
   defp do_install_release(version) do
     Logger.info("Installing release #{version}")
-    
+
     with :ok <- validate_release(version),
-         {:ok, _} <- :release_handler.unpack_release(version),
+         {:ok, _} <- Bloom.ReleaseHandler.unpack_release(version),
          :ok <- verify_installation(version) do
       Logger.info("Successfully installed release #{version}")
       :ok
     else
-      error -> 
+      error ->
         Logger.error("Failed to install release #{version}: #{inspect(error)}")
         handle_release_error(error)
     end
@@ -112,16 +112,16 @@ defmodule Bloom.ReleaseManager do
 
   defp do_switch_release(version) do
     Logger.info("Switching to release #{version}")
-    
+
     with :ok <- pre_switch_checks(version),
-         {:ok, _} <- :release_handler.install_release(version),
+         {:ok, _} <- Bloom.ReleaseHandler.install_release(version),
          :ok <- post_switch_validation(),
-         :ok <- :release_handler.make_permanent(version) do
+         :ok <- Bloom.ReleaseHandler.make_permanent(version) do
       Logger.info("Successfully switched to release #{version}")
       log_successful_switch(version)
       :ok
     else
-      error -> 
+      error ->
         Logger.error("Failed to switch to release #{version}: #{inspect(error)}")
         attempt_rollback()
         handle_release_error(error)
@@ -130,10 +130,13 @@ defmodule Bloom.ReleaseManager do
 
   defp do_rollback_release do
     Logger.info("Rolling back to previous release")
-    
+
     case previous_release() do
       {_name, prev_version, _libs, _status} ->
-        do_switch_release(prev_version)
+        # Convert charlist to string if needed
+        version_string = to_string(prev_version)
+        do_switch_release(version_string)
+
       nil ->
         Logger.error("No previous release found for rollback")
         {:error, :no_previous_release}
@@ -141,15 +144,16 @@ defmodule Bloom.ReleaseManager do
   end
 
   defp do_list_releases do
-    :release_handler.which_releases()
+    Bloom.ReleaseHandler.which_releases()
     |> Enum.map(&format_release_info/1)
   end
 
   defp do_current_release do
-    case :release_handler.which_releases(:current) do
-      [{name, version, _libs, status}] -> 
+    case Bloom.ReleaseHandler.which_releases(:current) do
+      [{name, version, _libs, status}] ->
         {:ok, %{name: to_string(name), version: to_string(version), status: status}}
-      [] -> 
+
+      [] ->
         {:error, :no_current_release}
     end
   end
@@ -157,15 +161,10 @@ defmodule Bloom.ReleaseManager do
   # Helper Functions
 
   defp validate_release(version) do
-    # TODO: Implement release validation
-    # - Check if release exists
-    # - Validate version format
-    # - Check dependencies
-    # - Verify disk space
-    :ok
+    Bloom.Validator.validate_release(version)
   end
 
-  defp verify_installation(version) do
+  defp verify_installation(_version) do
     # TODO: Verify the release was properly installed
     # - Check release directory structure
     # - Validate .rel file
@@ -173,7 +172,7 @@ defmodule Bloom.ReleaseManager do
     :ok
   end
 
-  defp pre_switch_checks(version) do
+  defp pre_switch_checks(_version) do
     # TODO: Pre-switch validation
     # - Check system resources
     # - Validate compatibility
@@ -198,14 +197,39 @@ defmodule Bloom.ReleaseManager do
   end
 
   defp log_successful_switch(version) do
-    # TODO: Log successful switch with metadata
     Logger.info("Release switch completed successfully: #{version}")
+
+    # Save deployment metadata
+    case Bloom.Metadata.save_release_info(version) do
+      :ok ->
+        :ok
+
+      {:error, reason} ->
+        Logger.warning("Failed to save release metadata: #{inspect(reason)}")
+    end
   end
 
   defp previous_release do
-    # TODO: Determine the previous permanent release
-    # This should look at release history and find the last known good release
-    nil
+    case Bloom.Metadata.get_rollback_target() do
+      {:ok, version} ->
+        # Return the release info tuple expected by the caller
+        case Bloom.ReleaseHandler.which_releases() do
+          releases when is_list(releases) ->
+            Enum.find(releases, fn {_name, v, _libs, _status} ->
+              to_string(v) == version
+            end)
+
+          _ ->
+            nil
+        end
+
+      {:error, _reason} ->
+        # Fallback to release_handler's previous release detection
+        case Bloom.ReleaseHandler.which_releases() do
+          [_current, previous | _] -> previous
+          _ -> nil
+        end
+    end
   end
 
   defp format_release_info({name, version, _libs, status}) do
@@ -217,6 +241,10 @@ defmodule Bloom.ReleaseManager do
   end
 
   defp handle_release_error({:error, {:bad_relup_file, _}}) do
+    {:error, "Invalid release upgrade file - check release compatibility"}
+  end
+
+  defp handle_release_error({:error, :bad_relup_file}) do
     {:error, "Invalid release upgrade file - check release compatibility"}
   end
 

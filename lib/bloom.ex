@@ -86,4 +86,36 @@ defmodule Bloom do
   def version do
     Application.spec(:bloom, :vsn) |> to_string()
   end
+
+  # Convenience API - delegates to ReleaseManager
+
+  @doc """
+  Install a release. See `Bloom.ReleaseManager.install_release/1`.
+  """
+  def install_release(version), do: Bloom.ReleaseManager.install_release(version)
+
+  @doc """
+  Switch to a release. See `Bloom.ReleaseManager.switch_release/1`.
+  """
+  def switch_release(version), do: Bloom.ReleaseManager.switch_release(version)
+
+  @doc """
+  List available releases. See `Bloom.ReleaseManager.list_releases/0`.
+  """
+  def list_releases, do: Bloom.ReleaseManager.list_releases()
+
+  @doc """
+  Get current release info. See `Bloom.ReleaseManager.current_release/0`.
+  """
+  def current_release, do: Bloom.ReleaseManager.current_release()
+
+  @doc """
+  Rollback to previous release. See `Bloom.ReleaseManager.rollback_release/0`.
+  """
+  def rollback_release, do: Bloom.ReleaseManager.rollback_release()
+
+  @doc """
+  Run health checks. See `Bloom.HealthChecker.run_checks/0`.
+  """
+  def health_check, do: Bloom.HealthChecker.run_checks()
 end

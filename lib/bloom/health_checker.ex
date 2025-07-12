@@ -1,11 +1,11 @@
 defmodule Bloom.HealthChecker do
   @moduledoc """
   Health monitoring and validation for release operations.
-  
+
   Provides a framework for running health checks after release switches
   and allows applications to register custom health validation functions.
   """
-  
+
   use GenServer
   require Logger
 
@@ -17,19 +17,20 @@ defmodule Bloom.HealthChecker do
 
   @doc """
   Register a custom health check function.
-  
+
   ## Examples
       
       Bloom.HealthChecker.register_check(:database, &MyApp.DatabaseChecker.check/0)
       Bloom.HealthChecker.register_check(:cache, &MyApp.CacheChecker.check/0)
   """
-  def register_check(name, check_function) when is_atom(name) and is_function(check_function, 0) do
+  def register_check(name, check_function)
+      when is_atom(name) and is_function(check_function, 0) do
     GenServer.call(__MODULE__, {:register_check, name, check_function})
   end
 
   @doc """
   Run all registered health checks.
-  
+
   Returns `true` if all checks pass, `false` if any fail.
   """
   def run_checks do
@@ -38,7 +39,7 @@ defmodule Bloom.HealthChecker do
 
   @doc """
   Run post-switch health validation.
-  
+
   This is called automatically after a release switch to validate
   that the application is functioning correctly.
   """
@@ -56,7 +57,7 @@ defmodule Bloom.HealthChecker do
       memory: &check_memory_usage/0,
       processes: &check_process_count/0
     }
-    
+
     {:ok, %{checks: checks}}
   end
 
@@ -84,16 +85,16 @@ defmodule Bloom.HealthChecker do
   # Private Implementation
 
   defp execute_all_checks(checks) do
-    results = 
+    results =
       checks
       |> Enum.map(fn {name, check_fn} ->
         {name, run_single_check(name, check_fn)}
       end)
-    
-    failed_checks = 
+
+    failed_checks =
       results
       |> Enum.filter(fn {_name, result} -> result != :ok end)
-    
+
     if Enum.empty?(failed_checks) do
       Logger.info("All health checks passed")
       true
@@ -106,18 +107,18 @@ defmodule Bloom.HealthChecker do
   defp execute_critical_checks(checks) do
     # Run only critical checks for post-switch validation
     critical_checks = [:application, :memory, :processes]
-    
+
     critical_results =
       checks
       |> Enum.filter(fn {name, _} -> name in critical_checks end)
       |> Enum.map(fn {name, check_fn} ->
         {name, run_single_check(name, check_fn)}
       end)
-    
-    failed_critical = 
+
+    failed_critical =
       critical_results
       |> Enum.filter(fn {_name, result} -> result != :ok end)
-    
+
     if Enum.empty?(failed_critical) do
       Logger.info("Critical health checks passed")
       true
@@ -157,6 +158,7 @@ defmodule Bloom.HealthChecker do
         # TODO: Get the actual application name from config
         # For now, just check that we have some applications running
         if length(apps) > 0, do: :ok, else: {:error, :no_applications}
+
       _ ->
         {:error, :cannot_get_applications}
     end
@@ -166,7 +168,7 @@ defmodule Bloom.HealthChecker do
     # Check if memory usage is within acceptable limits
     memory_info = :erlang.memory()
     total_memory = Keyword.get(memory_info, :total, 0)
-    
+
     # TODO: Make threshold configurable
     # For now, just check that we have some memory usage (sanity check)
     if total_memory > 0, do: :ok, else: {:error, :invalid_memory_info}
@@ -175,7 +177,7 @@ defmodule Bloom.HealthChecker do
   defp check_process_count do
     # Check if process count is reasonable
     process_count = :erlang.system_info(:process_count)
-    
+
     # TODO: Make thresholds configurable
     # Basic sanity check - should have more than 10 processes
     if process_count > 10, do: :ok, else: {:error, :too_few_processes}

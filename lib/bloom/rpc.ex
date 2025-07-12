@@ -1,11 +1,11 @@
 defmodule Bloom.RPC do
   @moduledoc """
   RPC interface for external communication with Bloom.
-  
+
   This module handles remote procedure calls from Florist CLI,
   providing a secure interface for release management operations.
   """
-  
+
   use GenServer
   require Logger
 
@@ -17,7 +17,7 @@ defmodule Bloom.RPC do
 
   @doc """
   Handle a remote procedure call from Florist CLI.
-  
+
   This is the main entry point for external RPC calls.
   """
   def handle_remote_call(operation, args, caller_info \\ nil) do
@@ -34,7 +34,7 @@ defmodule Bloom.RPC do
 
   @impl true
   def handle_call({:remote_call, operation, args, caller_info}, _from, state) do
-    result = 
+    result =
       with :ok <- authenticate_caller(caller_info),
            {:ok, response} <- execute_operation(operation, args) do
         {:ok, response}
@@ -43,7 +43,7 @@ defmodule Bloom.RPC do
           Logger.warning("RPC call failed: #{inspect(reason)}")
           {:error, reason}
       end
-    
+
     {:reply, result, state}
   end
 
@@ -51,7 +51,7 @@ defmodule Bloom.RPC do
 
   @doc """
   Install a release via RPC.
-  
+
   This function is called by Florist via :rpc.call/5
   """
   def install_release(version) do
@@ -61,7 +61,7 @@ defmodule Bloom.RPC do
 
   @doc """
   Switch to a release via RPC.
-  
+
   This function is called by Florist via :rpc.call/5
   """
   def switch_release(version) do
@@ -71,7 +71,7 @@ defmodule Bloom.RPC do
 
   @doc """
   List releases via RPC.
-  
+
   This function is called by Florist via :rpc.call/5
   """
   def list_releases do
@@ -81,7 +81,7 @@ defmodule Bloom.RPC do
 
   @doc """
   Get current release via RPC.
-  
+
   This function is called by Florist via :rpc.call/5
   """
   def current_release do
@@ -91,7 +91,7 @@ defmodule Bloom.RPC do
 
   @doc """
   Rollback release via RPC.
-  
+
   This function is called by Florist via :rpc.call/5
   """
   def rollback_release do
@@ -101,11 +101,12 @@ defmodule Bloom.RPC do
 
   @doc """
   Run health checks via RPC.
-  
+
   This function is called by Florist via :rpc.call/5
   """
   def health_check do
     Logger.info("RPC: health_check")
+
     case Bloom.HealthChecker.run_checks() do
       true -> :ok
       false -> {:error, :health_check_failed}
@@ -140,11 +141,12 @@ defmodule Bloom.RPC do
   end
 
   defp execute_operation(:health_check, []) do
-    result = 
+    result =
       case Bloom.HealthChecker.run_checks() do
         true -> :ok
         false -> {:error, :health_check_failed}
       end
+
     {:ok, result}
   end
 
