@@ -242,6 +242,18 @@ config :bloom,
   - `:skip` - Skip all database rollback attempts
 - `database_migration_timeout_ms` - Timeout for migration operations
 
+#### Release Lifecycle Management
+
+- `auto_cleanup_enabled` - Enable automatic cleanup of old releases (default: true)
+- `release_retention_count` - Number of releases to keep (default: 5)
+- `disk_space_warning_threshold` - Disk usage percentage to trigger warnings (default: 85)
+- `releases_dir` - Directory where releases are stored (default: "releases")
+
+#### Error Handling
+
+- `detailed_error_logging` - Enable detailed error logging with context (default: true)
+- `include_error_suggestions` - Include suggested actions in error messages (default: true)
+
 #### Callbacks
 
 - `rollback_failure_callback` - Function called when automatic rollback fails

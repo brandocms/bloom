@@ -118,4 +118,27 @@ defmodule Bloom do
   Run health checks. See `Bloom.HealthChecker.run_checks/0`.
   """
   def health_check, do: Bloom.HealthChecker.run_checks()
+
+  # Lifecycle management API
+
+  @doc """
+  Clean up old releases. See `Bloom.LifecycleManager.cleanup_old_releases/1`.
+  """
+  def cleanup_old_releases(opts \\ []), do: Bloom.LifecycleManager.cleanup_old_releases(opts)
+
+  @doc """
+  Remove a specific release. See `Bloom.LifecycleManager.remove_release/2`.
+  """
+  def remove_release(version, opts \\ []),
+    do: Bloom.LifecycleManager.remove_release(version, opts)
+
+  @doc """
+  Check disk space usage. See `Bloom.LifecycleManager.check_disk_space/1`.
+  """
+  def check_disk_space(opts \\ []), do: Bloom.LifecycleManager.check_disk_space(opts)
+
+  @doc """
+  Get detailed release information. See `Bloom.LifecycleManager.get_release_info/0`.
+  """
+  def get_release_info, do: Bloom.LifecycleManager.get_release_info()
 end

@@ -31,7 +31,7 @@ defmodule Bloom.ValidatorTest do
       # Enable file checks to test directory existence
       original_setting = Application.get_env(:bloom, :skip_file_checks, false)
       Application.put_env(:bloom, :skip_file_checks, false)
-      
+
       try do
         # This will likely fail since we don't have actual releases
         # but that's expected behavior

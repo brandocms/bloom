@@ -97,10 +97,10 @@ defmodule Bloom.HealthChecker do
 
     if Enum.empty?(failed_checks) do
       Logger.info("All health checks passed")
-      true
+      {:ok, :healthy}
     else
       Logger.warning("Health checks failed: #{inspect(failed_checks)}")
-      false
+      {:error, failed_checks}
     end
   end
 
@@ -121,10 +121,10 @@ defmodule Bloom.HealthChecker do
 
     if Enum.empty?(failed_critical) do
       Logger.info("Critical health checks passed")
-      true
+      {:ok, :healthy}
     else
       Logger.error("Critical health checks failed: #{inspect(failed_critical)}")
-      false
+      {:error, failed_critical}
     end
   end
 

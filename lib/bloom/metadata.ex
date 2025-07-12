@@ -190,6 +190,49 @@ defmodule Bloom.Metadata do
   end
 
   @doc """
+  Save deployment coordination information.
+  """
+  def save_deployment_info(deployment_id, deployment_data) do
+    case load_metadata() do
+      {:ok, metadata} ->
+        deployments_info = Map.get(metadata, "deployments_info", %{})
+        new_deployments_info = Map.put(deployments_info, deployment_id, deployment_data)
+        new_metadata = Map.put(metadata, "deployments_info", new_deployments_info)
+
+        case save_metadata(new_metadata) do
+          :ok ->
+            Logger.debug("Saved deployment info for #{deployment_id}")
+            :ok
+
+          {:error, reason} ->
+            Logger.error("Failed to save deployment info: #{inspect(reason)}")
+            {:error, reason}
+        end
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @doc """
+  Get deployment coordination information.
+  """
+  def get_deployment_info(deployment_id) do
+    case load_metadata() do
+      {:ok, metadata} ->
+        deployments_info = Map.get(metadata, "deployments_info", %{})
+
+        case Map.get(deployments_info, deployment_id) do
+          nil -> {:error, :not_found}
+          info -> {:ok, info}
+        end
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @doc """
   Clean up old deployment records, keeping only the specified number.
   """
   def cleanup_old_records(keep_count \\ 50) when is_integer(keep_count) and keep_count > 0 do

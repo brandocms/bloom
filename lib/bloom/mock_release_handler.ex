@@ -51,6 +51,13 @@ defmodule Bloom.MockReleaseHandler do
     GenServer.call(__MODULE__, {:which_releases, :current})
   end
 
+  @doc """
+  Mock remove_release/1 - simulates removing a release
+  """
+  def remove_release(version) do
+    GenServer.call(__MODULE__, {:remove_release, version})
+  end
+
   # Test helpers
 
   @doc """
@@ -167,6 +174,55 @@ defmodule Bloom.MockReleaseHandler do
   end
 
   @impl true
+  def handle_call({:remove_release, version}, _from, state) do
+    Logger.debug("MockReleaseHandler: remove_release(#{version})")
+
+    result =
+      case get_next_result(state, :remove_release) do
+        nil ->
+          # Default behavior - check if release exists and can be removed
+          release_exists =
+            Enum.any?(state.releases, fn {_name, v, _libs, _status} ->
+              to_string(v) == version
+            end)
+
+          cond do
+            not release_exists ->
+              {:error, :no_such_release}
+
+            # Don't allow removing the current release (permanent status)
+            release_is_permanent?(state, version) ->
+              {:error, {:permanent_release, version}}
+
+            true ->
+              :ok
+          end
+
+        result ->
+          result
+      end
+
+    new_state =
+      case result do
+        :ok ->
+          # Remove the release from the list
+          new_releases =
+            Enum.reject(state.releases, fn {_name, v, _libs, _status} ->
+              to_string(v) == version
+            end)
+
+          state
+          |> Map.put(:releases, new_releases)
+          |> clear_next_result(:remove_release)
+
+        _ ->
+          clear_next_result(state, :remove_release)
+      end
+
+    {:reply, result, new_state}
+  end
+
+  @impl true
   def handle_call({:add_release, name, version, status}, _from, state) do
     release = {name, to_charlist(version), [:kernel, :stdlib], status}
     new_releases = [release | state.releases]
@@ -211,6 +267,14 @@ defmodule Bloom.MockReleaseHandler do
       end)
 
     %{state | releases: new_releases}
+  end
+
+  defp release_is_permanent?(state, version) do
+    version_charlist = to_charlist(version)
+
+    Enum.any?(state.releases, fn {_name, v, _libs, status} ->
+      v == version_charlist and status == :permanent
+    end)
   end
 
   defp get_next_result(state, operation) do

@@ -49,4 +49,11 @@ defmodule Bloom.ReleaseHandler do
   def which_releases(type) do
     handler().which_releases(type)
   end
+
+  @doc """
+  Delegates to the configured handler's remove_release/1
+  """
+  def remove_release(version) do
+    handler().remove_release(version)
+  end
 end

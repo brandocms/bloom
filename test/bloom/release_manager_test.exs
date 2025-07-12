@@ -27,8 +27,8 @@ defmodule Bloom.ReleaseManagerTest do
       # Set up mock to fail
       MockReleaseHandler.set_next_result(:unpack_release, {:error, :no_such_release})
 
-      assert {:error, "Release not found - ensure release is properly installed"} =
-               ReleaseManager.install_release("1.2.3")
+      assert {:error, error_message} = ReleaseManager.install_release("1.2.3")
+      assert String.contains?(error_message, "Release 1.2.3 not found")
     end
 
     test "validates release before installation" do
@@ -51,8 +51,8 @@ defmodule Bloom.ReleaseManagerTest do
       # Set up mock to fail
       MockReleaseHandler.set_next_result(:install_release, {:error, :bad_relup_file})
 
-      assert {:error, "Invalid release upgrade file - check release compatibility"} =
-               ReleaseManager.switch_release("1.2.3")
+      assert {:error, error_message} = ReleaseManager.switch_release("1.2.3")
+      assert String.contains?(error_message, "Invalid release upgrade file")
     end
 
     test "fails switch when health check fails" do
@@ -118,15 +118,15 @@ defmodule Bloom.ReleaseManagerTest do
       # Set mock to return already installed error
       MockReleaseHandler.set_next_result(:unpack_release, {:error, {:already_installed, "1.2.3"}})
 
-      assert {:error, "Release 1.2.3 is already installed"} =
-               ReleaseManager.install_release("1.2.3")
+      assert {:error, error_message} = ReleaseManager.install_release("1.2.3")
+      assert String.contains?(error_message, "Release 1.2.3 is already installed")
     end
 
     test "handles bad relup file error" do
       MockReleaseHandler.set_next_result(:install_release, {:error, {:bad_relup_file, []}})
 
-      assert {:error, "Invalid release upgrade file - check release compatibility"} =
-               ReleaseManager.switch_release("1.2.3")
+      assert {:error, error_message} = ReleaseManager.switch_release("1.2.3")
+      assert String.contains?(error_message, "Invalid release upgrade file")
     end
   end
 end

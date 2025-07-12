@@ -106,7 +106,7 @@ defmodule Bloom.ReleaseManager do
     else
       error ->
         Logger.error("Failed to install release #{version}: #{inspect(error)}")
-        handle_release_error(error)
+        handle_release_error(error, %{operation: :install, version: version})
     end
   end
 
@@ -126,7 +126,7 @@ defmodule Bloom.ReleaseManager do
       error ->
         Logger.error("Failed to switch to release #{version}: #{inspect(error)}")
         attempt_rollback_with_database(version)
-        handle_release_error(error)
+        handle_release_error(error, %{operation: :switch, version: version})
     end
   end
 
@@ -143,7 +143,7 @@ defmodule Bloom.ReleaseManager do
     else
       error ->
         Logger.error("Failed to switch to release #{version}: #{inspect(error)}")
-        handle_release_error(error)
+        handle_release_error(error, %{operation: :rollback_switch, version: version})
     end
   end
 
@@ -236,8 +236,9 @@ defmodule Bloom.ReleaseManager do
     # - Check critical services
     # - Validate basic functionality
     case Bloom.HealthChecker.post_switch_health_check() do
-      true -> :ok
-      false -> {:error, :health_check_failed}
+      {:ok, :healthy} -> :ok
+      {:ok, :degraded} -> :ok
+      {:error, _reason} -> {:error, :health_check_failed}
     end
   end
 
@@ -252,6 +253,9 @@ defmodule Bloom.ReleaseManager do
       {:error, reason} ->
         Logger.warning("Failed to save release metadata: #{inspect(reason)}")
     end
+
+    # Perform automatic cleanup if enabled
+    Bloom.LifecycleManager.auto_cleanup_if_needed()
   end
 
   defp previous_release do
@@ -285,24 +289,29 @@ defmodule Bloom.ReleaseManager do
     }
   end
 
-  defp handle_release_error({:error, {:bad_relup_file, _}}) do
-    {:error, "Invalid release upgrade file - check release compatibility"}
-  end
+  defp handle_release_error(error, context) do
+    {message, suggestions, error_context} = Bloom.ErrorInterpreter.interpret_error(error, context)
 
-  defp handle_release_error({:error, :bad_relup_file}) do
-    {:error, "Invalid release upgrade file - check release compatibility"}
-  end
+    # Log detailed error information for debugging
+    if Application.get_env(:bloom, :detailed_error_logging, true) do
+      Logger.error("Release operation failed",
+        error: error,
+        interpreted_message: message,
+        suggestions: suggestions,
+        context: error_context
+      )
+    end
 
-  defp handle_release_error({:error, :no_such_release}) do
-    {:error, "Release not found - ensure release is properly installed"}
-  end
+    # Format error message with suggestions if enabled
+    include_suggestions = Application.get_env(:bloom, :include_error_suggestions, true)
 
-  defp handle_release_error({:error, {:already_installed, version}}) do
-    {:error, "Release #{version} is already installed"}
-  end
+    formatted_message =
+      Bloom.ErrorInterpreter.format_error(
+        {message, suggestions, error_context},
+        include_suggestions: include_suggestions
+      )
 
-  defp handle_release_error(error) do
-    {:error, "Release operation failed: #{inspect(error)}"}
+    {:error, formatted_message}
   end
 
   # Pre-switch check helpers
@@ -359,8 +368,9 @@ defmodule Bloom.ReleaseManager do
   defp check_application_state do
     # Ensure application is in a good state for switching
     case Bloom.HealthChecker.post_switch_health_check() do
-      true -> :ok
-      false -> {:error, :application_unhealthy}
+      {:ok, :healthy} -> :ok
+      {:ok, :degraded} -> :ok
+      {:error, _reason} -> {:error, :application_unhealthy}
     end
   end
 
@@ -444,7 +454,7 @@ defmodule Bloom.ReleaseManager do
 
     # Then try application rollback - but avoid infinite loops
     Logger.info("Rolling back to previous release")
-    
+
     case Bloom.Metadata.get_rollback_target() do
       {:ok, target_version} ->
         # Check if target is different from current to avoid infinite loop

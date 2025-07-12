@@ -44,7 +44,7 @@ defmodule Bloom.MigrationTrackerTest do
     test "saves migration information" do
       # Initialize metadata first
       Bloom.Metadata.init_metadata_storage()
-      
+
       # Configure empty repos so get_current_migration_versions returns empty map
       Application.put_env(:bloom, :ecto_repos, [])
 

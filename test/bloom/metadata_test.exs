@@ -100,10 +100,13 @@ defmodule Bloom.MetadataTest do
     end
 
     test "returns error when no rollback target available" do
+      # Clear the mock releases so there's no current release
+      Bloom.MockReleaseHandler.clear_releases()
+
       # Initialize metadata storage first
       Metadata.init_metadata_storage()
 
-      # Only one deployment
+      # Only one deployment with no previous version
       Metadata.save_release_info("1.0.0")
 
       # Should fall back to checking deployments, but find no previous
