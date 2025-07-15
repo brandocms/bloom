@@ -1,6 +1,8 @@
 defmodule Bloom.LifecycleManagerTest do
   use ExUnit.Case, async: false
 
+  import ExUnit.CaptureLog
+
   alias Bloom.LifecycleManager
 
   setup do
@@ -74,11 +76,14 @@ defmodule Bloom.LifecycleManagerTest do
       assert String.contains?(msg, "Cannot remove currently running release")
     end
 
+    @tag :capture_log
     test "handles non-existent release gracefully" do
-      result = LifecycleManager.remove_release("non-existent-version")
+      capture_log(fn ->
+        result = LifecycleManager.remove_release("non-existent-version")
 
-      # Should return an error, not crash
-      assert {:error, _msg} = result
+        # Should return an error, not crash
+        assert {:error, _msg} = result
+      end)
     end
   end
 

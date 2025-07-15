@@ -341,7 +341,12 @@ defmodule Bloom.Validator do
     File.mkdir_p(path)
 
     try do
-      {output, 0} = System.cmd("df", ["-m", path], stderr_to_stdout: true)
+      command_fn = Application.get_env(:bloom, :disk_space_command,
+        fn path -> {"df", ["-m", path], [stderr_to_stdout: true]} end)
+      
+      {cmd, args, opts} = command_fn.(path)
+
+      {output, 0} = System.cmd(cmd, args, opts)
 
       lines = String.split(output, "\n", trim: true)
 
@@ -383,8 +388,12 @@ defmodule Bloom.Validator do
 
   defp get_disk_space_info do
     try do
-      # Get disk usage for current directory
-      {output, 0} = System.cmd("df", ["-m", "."], stderr_to_stdout: true)
+      command_fn = Application.get_env(:bloom, :current_disk_space_command,
+        fn -> {"df", ["-m", "."], [stderr_to_stdout: true]} end)
+      
+      {cmd, args, opts} = command_fn.()
+
+      {output, 0} = System.cmd(cmd, args, opts)
 
       lines = String.split(output, "\n", trim: true)
 

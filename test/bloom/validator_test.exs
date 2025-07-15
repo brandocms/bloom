@@ -1,6 +1,8 @@
 defmodule Bloom.ValidatorTest do
   use ExUnit.Case, async: true
 
+  import ExUnit.CaptureLog
+
   alias Bloom.Validator
 
   describe "validate_release/1" do
@@ -12,21 +14,25 @@ defmodule Bloom.ValidatorTest do
       assert Validator.validate_release("3.2.1-rc1") == :ok
     end
 
+    @tag :capture_log
     test "rejects invalid version formats" do
       # Invalid version formats
-      assert {:error, error} = Validator.validate_release("1.0")
-      assert error =~ "Invalid version format"
+      capture_log(fn ->
+        assert {:error, error} = Validator.validate_release("1.0")
+        assert error =~ "Invalid version format"
 
-      assert {:error, error} = Validator.validate_release("v1.0.0")
-      assert error =~ "Invalid version format"
+        assert {:error, error} = Validator.validate_release("v1.0.0")
+        assert error =~ "Invalid version format"
 
-      assert {:error, error} = Validator.validate_release("1.0.0.1")
-      assert error =~ "Invalid version format"
+        assert {:error, error} = Validator.validate_release("1.0.0.1")
+        assert error =~ "Invalid version format"
 
-      assert {:error, error} = Validator.validate_release("invalid")
-      assert error =~ "Invalid version format"
+        assert {:error, error} = Validator.validate_release("invalid")
+        assert error =~ "Invalid version format"
+      end)
     end
 
+    @tag :capture_log
     test "checks release directory existence" do
       # Enable file checks to test directory existence
       original_setting = Application.get_env(:bloom, :skip_file_checks, false)
@@ -35,8 +41,10 @@ defmodule Bloom.ValidatorTest do
       try do
         # This will likely fail since we don't have actual releases
         # but that's expected behavior
-        result = Validator.validate_release("1.0.0")
-        assert match?({:error, _}, result)
+        capture_log(fn ->
+          result = Validator.validate_release("1.0.0")
+          assert match?({:error, _}, result)
+        end)
       after
         Application.put_env(:bloom, :skip_file_checks, original_setting)
       end
@@ -76,6 +84,7 @@ defmodule Bloom.ValidatorTest do
   end
 
   describe "disk space checking" do
+    @tag :capture_log
     test "handles disk space check failures gracefully" do
       # Enable file checks to test disk space functionality
       original_setting = Application.get_env(:bloom, :skip_file_checks, false)
@@ -85,10 +94,12 @@ defmodule Bloom.ValidatorTest do
         # This test might vary based on system, but should not crash
         # The disk space check should be defensive and not fail validation
         # if it can't determine disk space
-        result = Validator.validate_release("1.0.0")
+        capture_log(fn ->
+          result = Validator.validate_release("1.0.0")
 
-        # Should get a file not found error, not a disk space error
-        assert match?({:error, msg} when is_binary(msg), result)
+          # Should get a file not found error, not a disk space error
+          assert match?({:error, msg} when is_binary(msg), result)
+        end)
       after
         Application.put_env(:bloom, :skip_file_checks, original_setting)
       end
@@ -96,6 +107,7 @@ defmodule Bloom.ValidatorTest do
   end
 
   describe "application name detection" do
+    @tag :capture_log
     test "handles missing application configuration" do
       # Enable file checks to test application name detection
       original_setting = Application.get_env(:bloom, :skip_file_checks, false)
@@ -104,8 +116,10 @@ defmodule Bloom.ValidatorTest do
       try do
         # Test that the validator doesn't crash when app name is not configured
         # This is tested indirectly through validate_release
-        result = Validator.validate_release("1.0.0")
-        assert match?({:error, _}, result)
+        capture_log(fn ->
+          result = Validator.validate_release("1.0.0")
+          assert match?({:error, _}, result)
+        end)
       after
         Application.put_env(:bloom, :skip_file_checks, original_setting)
       end

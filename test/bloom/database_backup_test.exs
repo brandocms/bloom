@@ -2,6 +2,8 @@ defmodule Bloom.DatabaseBackupTest do
   # MUST be false - modifies Application environment
   use ExUnit.Case, async: false
 
+  import ExUnit.CaptureLog
+
   alias Bloom.DatabaseBackup
 
   # Mock backend for testing
@@ -61,22 +63,28 @@ defmodule Bloom.DatabaseBackupTest do
       assert {:ok, :backup_disabled} = result
     end
 
+    @tag :capture_log
     test "returns error when backup backend fails" do
       Application.put_env(:bloom, :database_backup_enabled, true)
       Application.put_env(:bloom, :database_backup_backend, Bloom.DatabaseBackupTest.TestBackend)
 
       # Mock backend will return an error
-      result = DatabaseBackup.create_backup("1.2.3")
-      assert {:error, {:backup_required, :mock_backend_failure}} = result
+      capture_log(fn ->
+        result = DatabaseBackup.create_backup("1.2.3")
+        assert {:error, {:backup_required, :mock_backend_failure}} = result
+      end)
     end
   end
 
   describe "restore_backup/1" do
+    @tag :capture_log
     test "returns error when no backup found" do
       version = "1.2.3"
 
-      result = DatabaseBackup.restore_backup(version)
-      assert {:error, :file_not_found} = result
+      capture_log(fn ->
+        result = DatabaseBackup.restore_backup(version)
+        assert {:error, :file_not_found} = result
+      end)
     end
   end
 

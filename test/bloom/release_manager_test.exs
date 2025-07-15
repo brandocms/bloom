@@ -1,5 +1,7 @@
 defmodule Bloom.ReleaseManagerTest do
   use ExUnit.Case, async: false
+  
+  import ExUnit.CaptureLog
 
   alias Bloom.ReleaseManager
   alias Bloom.MockReleaseHandler
@@ -31,40 +33,70 @@ defmodule Bloom.ReleaseManagerTest do
   end
 
   describe "install_release/1" do
+    @tag :capture_log
     test "successfully installs a release" do
-      assert ReleaseManager.install_release("1.2.3") == :ok
+      logs = capture_log(fn ->
+        assert ReleaseManager.install_release("1.2.3") == :ok
+      end)
+      
+      assert logs =~ "Installing release 1.2.3"
+      assert logs =~ "Successfully installed release 1.2.3"
     end
 
+    @tag :capture_log
     test "handles installation failure" do
       # Set up mock to fail
       MockReleaseHandler.set_next_result(:unpack_release, {:error, :no_such_release})
 
-      assert {:error, error_message} = ReleaseManager.install_release("1.2.3")
-      assert String.contains?(error_message, "Release 1.2.3 not found")
+      logs = capture_log(fn ->
+        assert {:error, error_message} = ReleaseManager.install_release("1.2.3")
+        assert String.contains?(error_message, "Release 1.2.3 not found")
+      end)
+      
+      assert logs =~ "Installing release 1.2.3"
+      assert logs =~ "Failed to install release 1.2.3"
     end
 
+    @tag :capture_log
     test "validates release before installation" do
       # Test with invalid version format
-      assert {:error, error_msg} = ReleaseManager.install_release("invalid-version")
-      assert error_msg =~ "Invalid version format"
+      logs = capture_log(fn ->
+        assert {:error, error_msg} = ReleaseManager.install_release("invalid-version")
+        assert error_msg =~ "Invalid version format"
+      end)
+      
+      assert logs =~ "Installing release invalid-version"
+      assert logs =~ "validation failed"
     end
   end
 
   describe "switch_release/1" do
+    @tag :capture_log
     test "successfully switches to a release" do
-      # Install release first
-      assert ReleaseManager.install_release("1.2.3") == :ok
+      logs = capture_log(fn ->
+        # Install release first
+        assert ReleaseManager.install_release("1.2.3") == :ok
 
-      # Then switch to it
-      assert ReleaseManager.switch_release("1.2.3") == :ok
+        # Then switch to it
+        assert ReleaseManager.switch_release("1.2.3") == :ok
+      end)
+      
+      assert logs =~ "Switching to release 1.2.3"
+      assert logs =~ "Successfully switched to release 1.2.3"
     end
 
+    @tag :capture_log
     test "handles switch failure with rollback attempt" do
       # Set up mock to fail
       MockReleaseHandler.set_next_result(:install_release, {:error, :bad_relup_file})
 
-      assert {:error, error_message} = ReleaseManager.switch_release("1.2.3")
-      assert String.contains?(error_message, "Invalid release upgrade file")
+      logs = capture_log(fn ->
+        assert {:error, error_message} = ReleaseManager.switch_release("1.2.3")
+        assert String.contains?(error_message, "Invalid release upgrade file")
+      end)
+      
+      assert logs =~ "Failed to switch to release 1.2.3"
+      assert logs =~ "Attempting automatic rollback"
     end
 
     test "fails switch when health check fails" do
@@ -100,45 +132,63 @@ defmodule Bloom.ReleaseManagerTest do
   end
 
   describe "rollback_release/0" do
+    @tag :capture_log
     test "successfully rolls back to previous release" do
-      # First create deployment history metadata
-      Bloom.Metadata.save_release_info("1.2.2")
-      Bloom.Metadata.save_release_info("1.2.3")
+      logs = capture_log(fn ->
+        # First create deployment history metadata
+        Bloom.Metadata.save_release_info("1.2.2")
+        Bloom.Metadata.save_release_info("1.2.3")
 
-      # Set up releases in mock handler
-      MockReleaseHandler.clear_releases()
-      MockReleaseHandler.add_mock_release(:bloom_test, "1.2.3", :permanent)
-      MockReleaseHandler.add_mock_release(:bloom_test, "1.2.2", :old)
+        # Set up releases in mock handler
+        MockReleaseHandler.clear_releases()
+        MockReleaseHandler.add_mock_release(:bloom_test, "1.2.3", :permanent)
+        MockReleaseHandler.add_mock_release(:bloom_test, "1.2.2", :old)
 
-      assert ReleaseManager.rollback_release() == :ok
+        assert ReleaseManager.rollback_release() == :ok
+      end)
+      
+      assert logs =~ "Rolling back to previous release"
+      assert logs =~ "Rollback target: 1.2.2"
     end
 
+    @tag :capture_log
     test "handles no previous release available" do
-      # Set up only one release (no previous metadata)
-      MockReleaseHandler.clear_releases()
-      MockReleaseHandler.add_mock_release(:bloom_test, "1.2.3", :permanent)
+      logs = capture_log(fn ->
+        # Set up only one release (no previous metadata)
+        MockReleaseHandler.clear_releases()
+        MockReleaseHandler.add_mock_release(:bloom_test, "1.2.3", :permanent)
 
-      assert ReleaseManager.rollback_release() == {:error, :no_previous_release}
+        assert ReleaseManager.rollback_release() == {:error, :no_previous_release}
+      end)
+      
+      assert logs =~ "Rolling back to previous release"
+      assert logs =~ "No previous release found for rollback"
     end
   end
 
   describe "error handling" do
+    @tag :capture_log
     test "handles already installed error" do
-      # First install should succeed
-      assert ReleaseManager.install_release("1.2.3") == :ok
+      capture_log(fn ->
+        # First install should succeed
+        assert ReleaseManager.install_release("1.2.3") == :ok
 
-      # Set mock to return already installed error
-      MockReleaseHandler.set_next_result(:unpack_release, {:error, {:already_installed, "1.2.3"}})
+        # Set mock to return already installed error
+        MockReleaseHandler.set_next_result(:unpack_release, {:error, {:already_installed, "1.2.3"}})
 
-      assert {:error, error_message} = ReleaseManager.install_release("1.2.3")
-      assert String.contains?(error_message, "Release 1.2.3 is already installed")
+        assert {:error, error_message} = ReleaseManager.install_release("1.2.3")
+        assert String.contains?(error_message, "Release 1.2.3 is already installed")
+      end)
     end
 
+    @tag :capture_log
     test "handles bad relup file error" do
-      MockReleaseHandler.set_next_result(:install_release, {:error, {:bad_relup_file, []}})
+      capture_log(fn ->
+        MockReleaseHandler.set_next_result(:install_release, {:error, {:bad_relup_file, []}})
 
-      assert {:error, error_message} = ReleaseManager.switch_release("1.2.3")
-      assert String.contains?(error_message, "Invalid release upgrade file")
+        assert {:error, error_message} = ReleaseManager.switch_release("1.2.3")
+        assert String.contains?(error_message, "Invalid release upgrade file")
+      end)
     end
   end
 end

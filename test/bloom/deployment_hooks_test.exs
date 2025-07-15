@@ -2,6 +2,8 @@ defmodule Bloom.DeploymentHooksTest do
   # MUST be false - modifies shared hooks registry
   use ExUnit.Case, async: false
 
+  import ExUnit.CaptureLog
+
   alias Bloom.DeploymentHooks
 
   defmodule TestHook do
@@ -113,6 +115,7 @@ defmodule Bloom.DeploymentHooksTest do
       assert_receive {:hook_executed, :pre_deployment, _pid2}
     end
 
+    @tag :capture_log
     test "stops execution on hook failure" do
       test_pid = self()
       context = %{phase: :pre_deployment, test_pid: test_pid}
@@ -120,13 +123,15 @@ defmodule Bloom.DeploymentHooksTest do
       DeploymentHooks.register_hook(:pre_deployment, FailingHook, priority: 10)
       DeploymentHooks.register_hook(:pre_deployment, TestHook, priority: 20)
 
-      result = DeploymentHooks.execute_hooks(:pre_deployment, context)
+      capture_log(fn ->
+        result = DeploymentHooks.execute_hooks(:pre_deployment, context)
 
-      assert {:error, error_message} = result
-      assert String.contains?(error_message, "FailingHook")
+        assert {:error, error_message} = result
+        assert String.contains?(error_message, "FailingHook")
 
-      # Second hook should not execute
-      refute_receive {:hook_executed, :pre_deployment, _pid}
+        # Second hook should not execute
+        refute_receive {:hook_executed, :pre_deployment, _pid}
+      end)
     end
 
     test "skips disabled hooks" do

@@ -292,8 +292,12 @@ defmodule Bloom.LifecycleManager do
   defp get_disk_usage do
     try do
       releases_dir = Application.get_env(:bloom, :releases_dir, "releases")
+      command_fn = Application.get_env(:bloom, :disk_usage_command, 
+        fn releases_dir -> {"df", ["-h", releases_dir], []} end)
+      
+      {cmd, args, opts} = command_fn.(releases_dir)
 
-      case System.cmd("df", ["-h", releases_dir]) do
+      case System.cmd(cmd, args, opts) do
         {output, 0} ->
           parse_df_output(output)
 
@@ -368,8 +372,12 @@ defmodule Bloom.LifecycleManager do
   defp get_release_disk_usage do
     try do
       releases_dir = Application.get_env(:bloom, :releases_dir, "releases")
+      command_fn = Application.get_env(:bloom, :release_disk_usage_command,
+        fn releases_dir -> {"du", ["-sh", releases_dir], []} end)
+      
+      {cmd, args, opts} = command_fn.(releases_dir)
 
-      case System.cmd("du", ["-sh", releases_dir]) do
+      case System.cmd(cmd, args, opts) do
         {output, 0} ->
           [size_info | _] = String.split(output, "\n")
           [size | _] = String.split(size_info, "\t")

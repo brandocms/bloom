@@ -2,6 +2,8 @@ defmodule Bloom.DeploymentCoordinatorTest do
   # MUST be false - modifies shared state
   use ExUnit.Case, async: false
 
+  import ExUnit.CaptureLog
+
   alias Bloom.DeploymentCoordinator
   alias Bloom.MockReleaseHandler
 
@@ -64,21 +66,34 @@ defmodule Bloom.DeploymentCoordinatorTest do
   end
 
   describe "deploy/2" do
+    @tag :capture_log
     test "successfully deploys with default options" do
-      result = DeploymentCoordinator.deploy("1.1.0")
+      logs = capture_log(fn ->
+        result = DeploymentCoordinator.deploy("1.1.0")
 
-      assert {:ok, deployment_result} = result
-      assert Map.has_key?(deployment_result, :deployment_id)
-      assert deployment_result.version == "1.1.0"
-      assert deployment_result.status == :completed
+        assert {:ok, deployment_result} = result
+        assert Map.has_key?(deployment_result, :deployment_id)
+        assert deployment_result.version == "1.1.0"
+        assert deployment_result.status == :completed
+      end)
+      
+      assert logs =~ "Starting coordinated deployment"
+      assert logs =~ "Deployment"
+      assert logs =~ "completed successfully"
     end
 
+    @tag :capture_log
     test "fails deployment when target version is already current" do
-      result = DeploymentCoordinator.deploy("1.0.0")
+      logs = capture_log(fn ->
+        result = DeploymentCoordinator.deploy("1.0.0")
 
-      assert {:error, error_info} = result
-      assert Map.has_key?(error_info, :deployment_id)
-      assert Map.has_key?(error_info, :reason)
+        assert {:error, error_info} = result
+        assert Map.has_key?(error_info, :deployment_id)
+        assert Map.has_key?(error_info, :reason)
+      end)
+      
+      assert logs =~ "Starting coordinated deployment"
+      assert logs =~ "failed"
     end
 
     test "handles deployment with custom options" do
@@ -153,6 +168,7 @@ defmodule Bloom.DeploymentCoordinatorTest do
       assert_receive {:hook_called, :pre_deployment, "1.1.0"}, 1000
     end
 
+    @tag :capture_log
     test "handles hook failures gracefully" do
       defmodule TestFailingHook do
         def execute(_context) do
@@ -162,10 +178,12 @@ defmodule Bloom.DeploymentCoordinatorTest do
 
       Bloom.DeploymentHooks.register_hook(:pre_deployment, TestFailingHook)
 
-      result = DeploymentCoordinator.deploy("1.1.0")
+      capture_log(fn ->
+        result = DeploymentCoordinator.deploy("1.1.0")
 
-      assert {:error, error_info} = result
-      assert String.contains?(error_info.reason, "Hook")
+        assert {:error, error_info} = result
+        assert String.contains?(error_info.reason, "Hook")
+      end)
     end
 
     test "runs post-deployment hooks on success" do
@@ -216,26 +234,32 @@ defmodule Bloom.DeploymentCoordinatorTest do
   end
 
   describe "rollback handling" do
+    @tag :capture_log
     test "attempts rollback on deployment failure when enabled" do
       # Set up the mock to fail the release switch
       MockReleaseHandler.set_next_result(:install_release, {:error, :installation_failed})
 
-      result = DeploymentCoordinator.deploy("1.1.0", rollback_on_failure: true)
+      capture_log(fn ->
+        result = DeploymentCoordinator.deploy("1.1.0", rollback_on_failure: true)
 
-      assert {:error, error_info} = result
-      assert Map.has_key?(error_info, :rollback)
-      # rollback status will depend on whether the mock rollback succeeds
+        assert {:error, error_info} = result
+        assert Map.has_key?(error_info, :rollback)
+        # rollback status will depend on whether the mock rollback succeeds
+      end)
     end
 
+    @tag :capture_log
     test "skips rollback when disabled" do
       # Set up the mock to fail the release switch
-      MockReleaseHandler.set_next_result(:install_release, {:error, :installation_failed})
+      capture_log(fn ->
+        MockReleaseHandler.set_next_result(:install_release, {:error, :installation_failed})
 
-      result = DeploymentCoordinator.deploy("1.1.0", rollback_on_failure: false)
+        result = DeploymentCoordinator.deploy("1.1.0", rollback_on_failure: false)
 
-      assert {:error, error_info} = result
-      assert error_info.status == :failed
-      refute Map.has_key?(error_info, :rollback)
+        assert {:error, error_info} = result
+        assert error_info.status == :failed
+        refute Map.has_key?(error_info, :rollback)
+      end)
     end
   end
 
