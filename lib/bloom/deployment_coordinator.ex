@@ -223,15 +223,11 @@ defmodule Bloom.DeploymentCoordinator do
 
   defp validate_system_health do
     case HealthChecker.run_checks() do
-      {:ok, :healthy} ->
+      true ->
         :ok
 
-      {:ok, :degraded} ->
-        Logger.warning("System health is degraded but proceeding with deployment")
-        :ok
-
-      {:error, reason} ->
-        {:error, "System health check failed: #{inspect(reason)}"}
+      false ->
+        {:error, "System health check failed"}
     end
   end
 
@@ -303,16 +299,12 @@ defmodule Bloom.DeploymentCoordinator do
       timeout = Keyword.get(context.raw_options, :health_check_timeout, 30_000)
 
       case run_health_checks_with_timeout(timeout) do
-        {:ok, :healthy} ->
+        true ->
           Logger.info("Health checks passed")
           :ok
 
-        {:ok, :degraded} ->
-          Logger.warning("Health checks show degraded state but continuing")
-          :ok
-
-        {:error, reason} ->
-          {:error, "Health checks failed: #{inspect(reason)}"}
+        false ->
+          {:error, "Health checks failed"}
 
         :timeout ->
           {:error, "Health checks timed out after #{timeout}ms"}

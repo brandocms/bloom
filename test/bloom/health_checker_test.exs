@@ -47,7 +47,7 @@ defmodule Bloom.HealthCheckerTest do
       HealthChecker.register_check(:test_check3, fn -> {:ok, :data} end)
 
       # In test mode, should always pass
-      assert HealthChecker.run_checks() == {:ok, :healthy}
+      assert HealthChecker.run_checks() == true
     end
 
     test "returns false when any check fails" do
@@ -56,7 +56,7 @@ defmodule Bloom.HealthCheckerTest do
       HealthChecker.register_check(:failing_check, fn -> false end)
 
       # In test mode, should always pass
-      assert HealthChecker.run_checks() == {:ok, :healthy}
+      assert HealthChecker.run_checks() == true
     end
 
     test "handles check exceptions gracefully" do
@@ -66,7 +66,7 @@ defmodule Bloom.HealthCheckerTest do
       end)
 
       # In test mode, should always pass
-      assert HealthChecker.run_checks() == {:ok, :healthy}
+      assert HealthChecker.run_checks() == true
     end
 
     test "handles invalid return values" do
@@ -74,7 +74,7 @@ defmodule Bloom.HealthCheckerTest do
       HealthChecker.register_check(:invalid_check, fn -> :invalid_return end)
 
       # In test mode, should always pass
-      assert HealthChecker.run_checks() == {:ok, :healthy}
+      assert HealthChecker.run_checks() == true
     end
   end
 
@@ -84,7 +84,7 @@ defmodule Bloom.HealthCheckerTest do
       HealthChecker.register_check(:non_critical, fn -> false end)
 
       # In test mode, should always pass regardless of registered checks
-      assert HealthChecker.post_switch_health_check() == {:ok, :healthy}
+      assert HealthChecker.post_switch_health_check() == true
     end
 
     test "fails when critical checks fail" do
@@ -94,14 +94,14 @@ defmodule Bloom.HealthCheckerTest do
       HealthChecker.register_check(:application, fn -> false end)
 
       # In test mode, should always pass regardless of registered checks
-      assert HealthChecker.post_switch_health_check() == {:ok, :healthy}
+      assert HealthChecker.post_switch_health_check() == true
     end
   end
 
   describe "default health checks" do
     test "application check passes with running applications" do
       # In test mode, should always pass
-      assert HealthChecker.post_switch_health_check() == {:ok, :healthy}
+      assert HealthChecker.post_switch_health_check() == true
     end
   end
 end

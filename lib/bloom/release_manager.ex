@@ -236,9 +236,8 @@ defmodule Bloom.ReleaseManager do
     # - Check critical services
     # - Validate basic functionality
     case Bloom.HealthChecker.post_switch_health_check() do
-      {:ok, :healthy} -> :ok
-      {:ok, :degraded} -> :ok
-      {:error, _reason} -> {:error, :health_check_failed}
+      true -> :ok
+      false -> {:error, :health_check_failed}
     end
   end
 
@@ -368,9 +367,8 @@ defmodule Bloom.ReleaseManager do
   defp check_application_state do
     # Ensure application is in a good state for switching
     case Bloom.HealthChecker.post_switch_health_check() do
-      {:ok, :healthy} -> :ok
-      {:ok, :degraded} -> :ok
-      {:error, _reason} -> {:error, :application_unhealthy}
+      true -> :ok
+      false -> {:error, :application_unhealthy}
     end
   end
 

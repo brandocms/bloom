@@ -12,7 +12,6 @@ defmodule Bloom.Application do
     base_children = [
       Bloom.ReleaseManager,
       Bloom.HealthChecker,
-      Bloom.RPC,
       Bloom.SafetyMonitor
     ]
 

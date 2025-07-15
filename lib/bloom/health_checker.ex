@@ -101,7 +101,7 @@ defmodule Bloom.HealthChecker do
     # In test mode, always pass health checks
     if Application.get_env(:bloom, :test_mode, Mix.env() == :test) do
       Logger.info("All health checks passed")
-      {:ok, :healthy}
+      true
     else
       results =
         checks
@@ -115,10 +115,10 @@ defmodule Bloom.HealthChecker do
 
       if Enum.empty?(failed_checks) do
         Logger.info("All health checks passed")
-        {:ok, :healthy}
+        true
       else
         Logger.warning("Health checks failed: #{inspect(failed_checks)}")
-        {:error, failed_checks}
+        false
       end
     end
   end
@@ -127,7 +127,7 @@ defmodule Bloom.HealthChecker do
     # In test mode, always pass critical checks
     if Application.get_env(:bloom, :test_mode, Mix.env() == :test) do
       Logger.info("Critical health checks passed")
-      {:ok, :healthy}
+      true
     else
       # Run only critical checks for post-switch validation
       critical_checks = [:application, :memory, :processes]
@@ -145,10 +145,10 @@ defmodule Bloom.HealthChecker do
 
       if Enum.empty?(failed_critical) do
         Logger.info("Critical health checks passed")
-        {:ok, :healthy}
+        true
       else
         Logger.error("Critical health checks failed: #{inspect(failed_critical)}")
-        {:error, failed_critical}
+        false
       end
     end
   end
