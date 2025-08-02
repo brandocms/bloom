@@ -46,7 +46,7 @@ defmodule Bloom.HealthCheckerTest do
       HealthChecker.register_check(:test_check2, fn -> true end)
       HealthChecker.register_check(:test_check3, fn -> {:ok, :data} end)
 
-      # In test mode, should always pass
+      # Should return true because all checks return valid success values
       assert HealthChecker.run_checks() == true
     end
 
@@ -55,8 +55,8 @@ defmodule Bloom.HealthCheckerTest do
       HealthChecker.register_check(:passing_check, fn -> :ok end)
       HealthChecker.register_check(:failing_check, fn -> false end)
 
-      # In test mode, should always pass
-      assert HealthChecker.run_checks() == true
+      # Should return false because failing_check returns false
+      assert HealthChecker.run_checks() == false
     end
 
     test "handles check exceptions gracefully" do
@@ -65,25 +65,26 @@ defmodule Bloom.HealthCheckerTest do
         raise "Test exception"
       end)
 
-      # In test mode, should always pass
-      assert HealthChecker.run_checks() == true
+      # Should return false because exception_check raises an exception
+      assert HealthChecker.run_checks() == false
     end
 
     test "handles invalid return values" do
       # Register a check with invalid return
       HealthChecker.register_check(:invalid_check, fn -> :invalid_return end)
 
-      # In test mode, should always pass
-      assert HealthChecker.run_checks() == true
+      # Should return false because invalid_check returns invalid value
+      assert HealthChecker.run_checks() == false
     end
   end
 
   describe "post_switch_health_check/0" do
     test "runs only critical checks" do
-      # Register a non-critical check
+      # Register a non-critical check that would fail
       HealthChecker.register_check(:non_critical, fn -> false end)
 
-      # In test mode, should always pass regardless of registered checks
+      # Should still pass because non-critical checks are ignored in post-switch validation
+      # Only :application, :memory, :processes checks are run
       assert HealthChecker.post_switch_health_check() == true
     end
 
@@ -91,16 +92,16 @@ defmodule Bloom.HealthCheckerTest do
       # Register a critical check that fails
       # Since we can't easily mock erlang functions without meck,
       # we'll test the framework by registering a failing check
-      HealthChecker.register_check(:application, fn -> false end)
+      HealthChecker.register_check(:application, fn -> {:error, :check_failed} end)
 
-      # In test mode, should always pass regardless of registered checks
-      assert HealthChecker.post_switch_health_check() == true
+      # Should return false because the critical application check failed
+      assert HealthChecker.post_switch_health_check() == false
     end
   end
 
   describe "default health checks" do
     test "application check passes with running applications" do
-      # In test mode, should always pass
+      # Should pass because we have applications running (at least :bloom and :ex_unit)
       assert HealthChecker.post_switch_health_check() == true
     end
   end

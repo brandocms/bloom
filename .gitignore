@@ -28,3 +28,6 @@ bloom-*.tar
 /.DS_Store
 /sql
 /bloom
+
+# Runtime metadata files
+/priv/

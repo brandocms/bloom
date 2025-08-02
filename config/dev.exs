@@ -3,6 +3,7 @@ import Config
 # In development, use the mock release handler by default
 # since we typically don't have real OTP releases
 config :bloom,
+  env: :dev,
   release_handler: Bloom.MockReleaseHandler,
   # Standard disk checking commands for development
   disk_usage_command: fn releases_dir -> {"df", ["-h", releases_dir], []} end,

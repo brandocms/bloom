@@ -98,37 +98,26 @@ defmodule Bloom.HealthChecker do
   # Private Implementation
 
   defp execute_all_checks(checks) do
-    # In test mode, always pass health checks
-    if Application.get_env(:bloom, :test_mode, Mix.env() == :test) do
+    results =
+      checks
+      |> Enum.map(fn {name, check_fn} ->
+        {name, run_single_check(name, check_fn)}
+      end)
+
+    failed_checks =
+      results
+      |> Enum.filter(fn {_name, result} -> result != :ok end)
+
+    if Enum.empty?(failed_checks) do
       Logger.info("All health checks passed")
       true
     else
-      results =
-        checks
-        |> Enum.map(fn {name, check_fn} ->
-          {name, run_single_check(name, check_fn)}
-        end)
-
-      failed_checks =
-        results
-        |> Enum.filter(fn {_name, result} -> result != :ok end)
-
-      if Enum.empty?(failed_checks) do
-        Logger.info("All health checks passed")
-        true
-      else
-        Logger.warning("Health checks failed: #{inspect(failed_checks)}")
-        false
-      end
+      Logger.warning("Health checks failed: #{inspect(failed_checks)}")
+      false
     end
   end
 
   defp execute_critical_checks(checks) do
-    # In test mode, always pass critical checks
-    if Application.get_env(:bloom, :test_mode, Mix.env() == :test) do
-      Logger.info("Critical health checks passed")
-      true
-    else
       # Run only critical checks for post-switch validation
       critical_checks = [:application, :memory, :processes]
 
@@ -143,13 +132,12 @@ defmodule Bloom.HealthChecker do
         critical_results
         |> Enum.filter(fn {_name, result} -> result != :ok end)
 
-      if Enum.empty?(failed_critical) do
-        Logger.info("Critical health checks passed")
-        true
-      else
-        Logger.error("Critical health checks failed: #{inspect(failed_critical)}")
-        false
-      end
+    if Enum.empty?(failed_critical) do
+      Logger.info("Critical health checks passed")
+      true
+    else
+      Logger.error("Critical health checks failed: #{inspect(failed_critical)}")
+      false
     end
   end
 
@@ -183,25 +171,15 @@ defmodule Bloom.HealthChecker do
         # Check for the configured application or just verify some apps are running
         case Application.get_env(:bloom, :app_name) do
           nil ->
-            # In test mode, allow minimal applications
-            if Application.get_env(:bloom, :test_mode, Mix.env() == :test) do
-              :ok
-            else
-              # Just check that we have some applications running
-              if length(apps) > 0, do: :ok, else: {:error, :no_applications}
-            end
+            # Just check that we have some applications running
+            if length(apps) > 0, do: :ok, else: {:error, :no_applications}
 
           app_name when is_atom(app_name) ->
             # Check if the specific application is running
             if Enum.any?(apps, fn {name, _desc, _vsn} -> name == app_name end) do
               :ok
             else
-              # In test mode, be more lenient
-              if Application.get_env(:bloom, :test_mode, Mix.env() == :test) do
-                :ok
-              else
-                {:error, {:application_not_running, app_name}}
-              end
+              {:error, {:application_not_running, app_name}}
             end
         end
 
@@ -218,20 +196,15 @@ defmodule Bloom.HealthChecker do
     # Get configurable memory threshold (default: 1GB)
     threshold = Application.get_env(:bloom, :memory_threshold_bytes, 1_073_741_824)
 
-    # In test mode, be more lenient with memory checks
-    if Application.get_env(:bloom, :test_mode, Mix.env() == :test) do
-      :ok
-    else
-      cond do
-        total_memory == 0 ->
-          {:error, :invalid_memory_info}
+    cond do
+      total_memory == 0 ->
+        {:error, :invalid_memory_info}
 
-        total_memory > threshold ->
-          {:error, {:memory_threshold_exceeded, total_memory, threshold}}
+      total_memory > threshold ->
+        {:error, {:memory_threshold_exceeded, total_memory, threshold}}
 
-        true ->
-          :ok
-      end
+      true ->
+        :ok
     end
   end
 
@@ -244,20 +217,15 @@ defmodule Bloom.HealthChecker do
     min_processes = Application.get_env(:bloom, :min_processes, 10)
     max_process_ratio = Application.get_env(:bloom, :max_process_ratio, 0.9)
 
-    # In test mode, be more lenient with process checks
-    if Application.get_env(:bloom, :test_mode, Mix.env() == :test) do
-      :ok
-    else
-      cond do
-        process_count < min_processes ->
-          {:error, {:too_few_processes, process_count, min_processes}}
+    cond do
+      process_count < min_processes ->
+        {:error, {:too_few_processes, process_count, min_processes}}
 
-        process_count / process_limit > max_process_ratio ->
-          {:error, {:high_process_usage, process_count, process_limit}}
+      process_count / process_limit > max_process_ratio ->
+        {:error, {:high_process_usage, process_count, process_limit}}
 
-        true ->
-          :ok
-      end
+      true ->
+        :ok
     end
   end
 end

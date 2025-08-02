@@ -2,6 +2,7 @@ import Config
 
 # Default Bloom configuration
 config :bloom,
+  env: :prod,
   # Disk checking commands - configure complete commands for each use case
   disk_usage_command: fn releases_dir -> {"df", ["-h", releases_dir], []} end,
   disk_space_command: fn path -> {"df", ["-m", path], [stderr_to_stdout: true]} end,
