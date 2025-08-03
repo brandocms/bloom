@@ -72,26 +72,31 @@ defmodule Bloom.Validator do
   end
 
   defp check_release_exists(version) do
-    releases_dir = Application.get_env(:bloom, :releases_dir, "releases")
-    release_path = Path.join([releases_dir, version])
-
-    if File.exists?(release_path) do
-      # Check for required files
-      rel_file = Path.join([release_path, "#{get_app_name()}.rel"])
-      tar_file = Path.join([release_path, "#{get_app_name()}.tar.gz"])
-
-      cond do
-        not File.exists?(rel_file) ->
-          {:error, "Release file (.rel) not found for version #{version}"}
-
-        not File.exists?(tar_file) ->
-          {:error, "Release archive (.tar.gz) not found for version #{version}"}
-
-        true ->
-          :ok
-      end
+    # Get the releases directory - need to handle both relative and absolute paths
+    configured_dir = Application.get_env(:bloom, :releases_dir, "releases")
+    
+    releases_dir = if Path.type(configured_dir) == :absolute do
+      configured_dir
     else
-      {:error, "Release directory not found for version #{version}"}
+      # If relative, assume it's relative to the parent of the current release
+      # e.g., if running from /sites/prod/app/current, look in /sites/prod/app/releases
+      current_dir = File.cwd!()
+      case Path.split(current_dir) do
+        parts when length(parts) > 1 ->
+          parent_dir = parts |> Enum.drop(-1) |> Path.join()
+          Path.join(parent_dir, configured_dir)
+        _ ->
+          configured_dir
+      end
+    end
+    
+    # For unpack_release, we need the tarball to exist, not the directory
+    tarball_path = Path.join([releases_dir, "#{version}.tar.gz"])
+    
+    if File.exists?(tarball_path) do
+      :ok
+    else
+      {:error, "Release tarball not found: #{tarball_path}"}
     end
   end
 
