@@ -168,12 +168,21 @@ defmodule Bloom.ReleaseManager do
   end
 
   defp do_current_release do
-    case Bloom.ReleaseHandler.which_releases(:current) do
-      [{name, version, _libs, status}] ->
-        {:ok, %{name: to_string(name), version: to_string(version), status: status}}
-
+    case Bloom.ReleaseHandler.which_releases() do
       [] ->
         {:error, :no_current_release}
+
+      releases ->
+        # Look for a release with :current status first (hot upgrade in progress)
+        # If not found, look for :permanent (normal running state)
+        case Enum.find(releases, fn {_, _, _, status} -> status == :current end) ||
+             Enum.find(releases, fn {_, _, _, status} -> status == :permanent end) do
+          {name, vsn, _apps, status} ->
+            {:ok, %{name: to_string(name), version: to_string(vsn), status: status}}
+
+          nil ->
+            {:error, :no_current_release}
+        end
     end
   end
 
