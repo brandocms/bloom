@@ -351,7 +351,12 @@ defmodule Bloom.LifecycleManager do
     # This is a basic implementation
     case Regex.run(~r/^(\d+(?:\.\d+)?)([KMGT]?)/, size_str) do
       [_, number_str, unit] ->
-        number = String.to_float(number_str)
+        number = 
+          if String.contains?(number_str, ".") do
+            String.to_float(number_str)
+          else
+            String.to_integer(number_str) * 1.0
+          end
 
         multiplier =
           case unit do
