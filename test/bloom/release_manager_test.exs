@@ -36,7 +36,7 @@ defmodule Bloom.ReleaseManagerTest do
     @tag :capture_log
     test "successfully installs a release" do
       logs = capture_log(fn ->
-        assert ReleaseManager.install_release("1.2.3") == :ok
+        assert ReleaseManager.install_release("1.2.3") == :installed
       end)
       
       assert logs =~ "Installing release 1.2.3"
@@ -75,10 +75,10 @@ defmodule Bloom.ReleaseManagerTest do
     test "successfully switches to a release" do
       logs = capture_log(fn ->
         # Install release first
-        assert ReleaseManager.install_release("1.2.3") == :ok
+        assert ReleaseManager.install_release("1.2.3") == :installed
 
         # Then switch to it
-        assert ReleaseManager.switch_release("1.2.3") == :ok
+        assert ReleaseManager.switch_release("1.2.3") == :switched
       end)
       
       assert logs =~ "Switching to release 1.2.3"
@@ -144,7 +144,7 @@ defmodule Bloom.ReleaseManagerTest do
         MockReleaseHandler.add_mock_release(:bloom_test, "1.2.3", :permanent)
         MockReleaseHandler.add_mock_release(:bloom_test, "1.2.2", :old)
 
-        assert ReleaseManager.rollback_release() == :ok
+        assert ReleaseManager.rollback_release() == :rolled_back
       end)
       
       assert logs =~ "Rolling back to previous release"
@@ -171,7 +171,7 @@ defmodule Bloom.ReleaseManagerTest do
     test "handles already installed error" do
       capture_log(fn ->
         # First install should succeed
-        assert ReleaseManager.install_release("1.2.3") == :ok
+        assert ReleaseManager.install_release("1.2.3") == :installed
 
         # Set mock to return already installed error
         MockReleaseHandler.set_next_result(:unpack_release, {:error, {:already_installed, "1.2.3"}})

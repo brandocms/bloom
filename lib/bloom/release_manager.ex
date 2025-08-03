@@ -102,7 +102,7 @@ defmodule Bloom.ReleaseManager do
          {:ok, _} <- Bloom.ReleaseHandler.unpack_release(version),
          :ok <- verify_installation(version) do
       Logger.info("Successfully installed release #{version}")
-      :ok
+      :installed
     else
       error ->
         Logger.error("Failed to install release #{version}: #{inspect(error)}")
@@ -121,7 +121,7 @@ defmodule Bloom.ReleaseManager do
          :ok <- Bloom.ReleaseHandler.make_permanent(version) do
       Logger.info("Successfully switched to release #{version}")
       log_successful_switch(version, backup_info, migration_info)
-      :ok
+      :switched
     else
       error ->
         Logger.error("Failed to switch to release #{version}: #{inspect(error)}")
@@ -139,7 +139,7 @@ defmodule Bloom.ReleaseManager do
          :ok <- post_switch_validation(),
          :ok <- Bloom.ReleaseHandler.make_permanent(version) do
       Logger.info("Successfully switched to release #{version}")
-      :ok
+      :switched
     else
       error ->
         Logger.error("Failed to switch to release #{version}: #{inspect(error)}")
@@ -154,7 +154,10 @@ defmodule Bloom.ReleaseManager do
       {_name, prev_version, _libs, _status} ->
         # Convert charlist to string if needed
         version_string = to_string(prev_version)
-        do_switch_release(version_string)
+        case do_switch_release(version_string) do
+          :switched -> :rolled_back
+          error -> error
+        end
 
       nil ->
         Logger.error("No previous release found for rollback")
@@ -468,7 +471,7 @@ defmodule Bloom.ReleaseManager do
         case do_current_release() do
           {:ok, current_version} when current_version != target_version ->
             case do_switch_release_without_rollback(target_version) do
-              :ok ->
+              :switched ->
                 Logger.info("Automatic rollback completed successfully")
                 :ok
 

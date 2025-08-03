@@ -282,7 +282,7 @@ defmodule Bloom.DeploymentCoordinator do
     Logger.info("Performing release switch to #{context.target_version}")
 
     case ReleaseManager.switch_release(context.target_version) do
-      :ok ->
+      :switched ->
         :ok
 
       {:error, reason} ->
@@ -387,7 +387,7 @@ defmodule Bloom.DeploymentCoordinator do
     Logger.warning("Attempting automatic rollback for failed deployment #{context.id}")
 
     case ReleaseManager.rollback_release() do
-      :ok -> :ok
+      :rolled_back -> :ok
       {:error, reason} -> {:error, reason}
     end
   end
@@ -396,7 +396,7 @@ defmodule Bloom.DeploymentCoordinator do
     Logger.warning("Performing emergency rollback for deployment #{deployment_id}")
 
     case ReleaseManager.rollback_release() do
-      :ok ->
+      :rolled_back ->
         Logger.info("Emergency rollback completed successfully")
         {:ok, :rolled_back}
 

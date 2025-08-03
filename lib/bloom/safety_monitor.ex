@@ -391,7 +391,7 @@ defmodule Bloom.SafetyMonitor do
     # Attempt rollback in a separate process to avoid blocking the monitor
     Task.start(fn ->
       case Bloom.ReleaseManager.rollback_release() do
-        :ok ->
+        :rolled_back ->
           Logger.info("Automatic rollback completed successfully")
 
         {:error, reason} ->
